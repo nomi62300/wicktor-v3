@@ -183,7 +183,7 @@ const Scoring = (() => {
    */
   const REGIME_QUALITY = { trending: 100, transition: 70, ranging: 55, squeeze: 35, unknown: 25 };
 
-  function contextQuality(tfSnapshots, direction, mode) {
+  function contextQuality(tfSnapshots, direction, mode, extras = null) {
     const confirm = tfSnapshots[mode.confirm];
     const context = tfSnapshots[mode.context];
     if (!confirm) return 0;
@@ -200,12 +200,17 @@ const Scoring = (() => {
     };
     const agreement = (agreeOne(confirm) + agreeOne(context)) / 2;
 
-    // RSI 50 Momentum Control Line:
-    // Does the 15M confirmation timeframe hold above 50 for longs / below 50 for shorts?
+    // RSI Momentum Control Line (default 50 midline):
+    // Does the 15M confirmation timeframe hold above longThresh for longs / below shortThresh for shorts?
     // Favorable momentum awards +10; counter-momentum subtracts 10.
     let rsiAdjustment = 0;
-    if (confirm && confirm.rsi != null && direction) {
-      const rsiFavorable = (direction === 1 && confirm.rsi >= 50) || (direction === -1 && confirm.rsi <= 50);
+    if (confirm && confirm.rsi != null && direction && !(extras && extras.noRsi)) {
+      const longThresh = (extras && extras.rsiLong != null) ? extras.rsiLong : 50;
+      const shortThresh = (extras && extras.rsiShort != null) ? extras.rsiShort : 50;
+      const rsiReversal = extras && extras.rsiReversal;
+      const rsiFavorable = rsiReversal
+        ? ((direction === 1 && confirm.rsi <= longThresh) || (direction === -1 && confirm.rsi >= shortThresh))
+        : ((direction === 1 && confirm.rsi >= longThresh) || (direction === -1 && confirm.rsi <= shortThresh));
       rsiAdjustment = rsiFavorable ? 10 : -10;
     }
 
@@ -231,7 +236,7 @@ const Scoring = (() => {
   const WEIGHTS = { entry: 0.40, context: 0.35, method: 0.25 };
   const NO_RR_CAP = 45; // ceiling applied when risk:reward is not viable
 
-  function scoreSetup(tfSnapshots, continuation, exhaustion, reversal, modeName = 'scalp') {
+  function scoreSetup(tfSnapshots, continuation, exhaustion, reversal, modeName = 'scalp', extras = null) {
     const mode = MODES[modeName] || MODES.scalp;
     const entrySnap = tfSnapshots[mode.entry];
     const confirmSnap = tfSnapshots[mode.confirm];
@@ -250,7 +255,7 @@ const Scoring = (() => {
       };
     }
 
-    const context = contextQuality(tfSnapshots, direction, mode);
+    const context = contextQuality(tfSnapshots, direction, mode, extras);
     const method = continuation.score; // already a 0-100 mean (Audit F3)
 
     let raw = WEIGHTS.entry * entry.score + WEIGHTS.context * context + WEIGHTS.method * method;
@@ -899,14 +904,15 @@ const Scoring = (() => {
       buildContinuation(tfSnapshots, bias, extras && extras.oiChange15m),
       buildExhaustion(tfSnapshots, bias),
       buildReversal(tfSnapshots, bias),
-      modeName
+      modeName,
+      extras
     );
     const scoringBias = probe.direction || bias;
 
     const continuation = buildContinuation(tfSnapshots, scoringBias, extras && extras.oiChange15m);
     const exhaustion = buildExhaustion(tfSnapshots, scoringBias);
     const reversal = buildReversal(tfSnapshots, scoringBias);
-    const setup = scoreSetup(tfSnapshots, continuation, exhaustion, reversal, modeName);
+    const setup = scoreSetup(tfSnapshots, continuation, exhaustion, reversal, modeName, extras);
     const score = setup.score;
 
     const dir = directionValue(tfSnapshots);
