@@ -17,6 +17,10 @@ project uses [Semantic Versioning](https://semver.org/).
 - **Automated Scan Polling & Topbar Countdown (`index.html` & `js/app.js`):**
   - Restored automated dual-cadence scheduling: 1-minute cloud snapshot polling (`loadSnapshot`) and 1-second dynamic countdown timer (`updateNextScanLabel`).
   - Removed manual header scan button in favor of automated hands-off background scanning.
+- **GitHub Actions Workflows & Secrets Configuration:**
+  - Configured `SUPABASE_SERVICE_KEY` repository secret in `nomi62300/wicktor-v3` via GitHub CLI.
+  - Updated `tools/snapshot-sectors.js`, `.github/workflows/sector-snapshot.yml`, and `keep-supabase-warm.yml` with the v3 project URL (`laqytygibnlpdohouxaq.supabase.co`).
+  - Converted `signal-journal-scan.yml` to `workflow_dispatch` manual trigger to eliminate redundant runs and stop email alerts, since Tokyo `pg_cron` runs automated scans directly inside Postgres.
 - **Test Suite Verification (`tests/indicators.test.js`):**
   - All 138 indicator and scoring unit tests passing cleanly (0 failures).
 

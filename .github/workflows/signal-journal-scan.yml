@@ -47,18 +47,18 @@ name: Signal journal scan
 # actual region, confirmed to reach Bybit) succeeded every time. GitHub's
 # runners are US-based, so without this header they'd silently route to a
 # blocked region and this fix would appear to work in manual testing (from
-# a different origin) while failing on the real schedule.
+# NOTE: Automated scans in Wicktor v3 run directly inside Postgres via pg_cron
+# (see 20260923190500_split_scan_resolve.sql). This workflow is kept for manual
+# on-demand testing via workflow_dispatch.
 # ---------------------------------------------------------------------------
 
 on:
-  schedule:
-    - cron: '*/5 * * * *'
   workflow_dispatch:
     inputs:
       universe_size:
         description: 'Coins per category to scan'
         required: false
-        default: '120'
+        default: '500'
       dry_run:
         description: 'Score without writing (1 = dry run)'
         required: false
@@ -78,18 +78,13 @@ jobs:
       - name: Invoke cron-scan Edge Function
         env:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          UNIVERSE_SIZE: ${{ github.event.inputs.universe_size || '350' }}
+          UNIVERSE_SIZE: ${{ github.event.inputs.universe_size || '500' }}
           DRY_RUN: ${{ github.event.inputs.dry_run || '0' }}
         run: |
-          # THREE CALLS, NOT ONE. A combined run at universe_size=350 is
-          # killed with WORKER_RESOURCE_LIMIT -- the worker's CPU budget, not
-          # memory (peak heap measured at 17MB). Each stage fits comfortably on
-          # its own; only their sum does not. scan-spot stashes its half and
-          # scan-linear merges both into the single snapshot row the site
-          # reads, so the ORDER here matters. The sleeps keep each call off the
-          # previous one's warm worker, which was measured to be killed sooner
-          # than a cold one.
-          base="https://fpyfetynfobfrpunnnhv.supabase.co/functions/v1/cron-scan"
+          # THREE CALLS, NOT ONE. Each stage fits comfortably on its own.
+          # scan-spot stashes its half and scan-linear merges both into the
+          # single snapshot row the site reads.
+          base="https://laqytygibnlpdohouxaq.supabase.co/functions/v1/cron-scan"
           fail=0
           for stage in scan-spot scan-linear resolve; do
             url="${base}?stage=${stage}"

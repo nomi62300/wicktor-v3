@@ -33,5 +33,6 @@ jobs:
           node-version: '20'   # global fetch, no dependencies to install
       - name: Snapshot sectors
         env:
+          SUPABASE_URL: https://laqytygibnlpdohouxaq.supabase.co
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: node tools/snapshot-sectors.js

@@ -27,7 +27,7 @@
 
 const Api = require('../js/api.js');
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://fpyfetynfobfrpunnnhv.supabase.co';
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://laqytygibnlpdohouxaq.supabase.co';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const DRY_RUN = process.env.DRY_RUN === '1';
 

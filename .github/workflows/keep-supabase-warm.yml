@@ -17,4 +17,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ping Supabase Edge Function
-        run: curl -sf "https://fpyfetynfobfrpunnnhv.supabase.co/functions/v1/cmc-proxy?path=ping"
+        run: curl -sf "https://laqytygibnlpdohouxaq.supabase.co/functions/v1/cmc-proxy?path=ping"
