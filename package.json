@@ -1,6 +1,6 @@
 {
   "name": "wicktor-v3",
-  "version": "3.2.1",
+  "version": "3.2.2",
   "private": true,
   "description": "Multi-timeframe crypto & tokenized-stock screener with dynamic local swing SL + 1R/2R/3R trade planning.",
   "repository": {

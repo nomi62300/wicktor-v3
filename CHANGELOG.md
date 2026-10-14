@@ -4,6 +4,27 @@ All notable changes to Wicktor are documented in this file, in the
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. This
 project uses [Semantic Versioning](https://semver.org/).
 
+## [v3.2.2] - TP Completion Elapsed Times & Trade Duration Journaling
+
+### Added
+- **TP Completion Elapsed Time Tracking (`js/signals.js` & `cron-scan/index.ts`):**
+  - Updated `SignalJournal.tpTouches(bars, direction, entry, risk, targetR, barTime)` to record the exact elapsed minutes (`tp1_min`, `tp2_min`, `tp3_min`) from trade entry to each take-profit milestone.
+  - Recorded total trade lifetime (`duration_min`) on resolution (exit reason: TP, stop-loss, or timeout).
+  - Added migration `20261014230000_tp_times_and_duration.sql` adding `tp1_time_min`, `tp2_time_min`, `tp3_time_min`, and `duration_min` to `signal_journal` on Tokyo Supabase.
+  - Added unit tests in `tests/indicators.test.js` verifying accurate completion minutes per TP rung (all 139 tests passing).
+- **Journal Summary & Table Duration Metrics (`js/signals-page.js` & `signals.html`):**
+  - Added 4 new summary strip tiles:
+    - **Avg Duration**: average trade duration across all resolved signals.
+    - **Avg TP1 Time**: average time taken for trades to achieve TP1.
+    - **Avg TP2 Time**: average time taken for trades to reach TP2.
+    - **Avg TP3 Time**: average time taken for trades to hit the full 3R target (TP3).
+  - Added dedicated `Duration` column to the journal table displaying elapsed time for open trades (in live realtime) and total trade length for resolved trades.
+  - Enhanced `TP Touches` badge indicators to show time taken to reach each level (e.g. `TP1 ✓ (15m)`).
+  - Updated `fetchAllRows` PostgREST query to select duration metrics across all historical signals.
+  - Bumped script cache buster in `signals.html` to `?v=3.2.2`.
+- **Edge Function Redeployment:**
+  - Deployed updated `cron-scan` Edge Function to Supabase Tokyo (`laqytygibnlpdohouxaq`).
+
 ## [v3.2.1] - Active TF Trend Alignment Fix & 65/35 Momentum Zone Production Rollout
 
 ### Fixed

@@ -698,6 +698,23 @@ test('journal: only EXCELLENT is journalled', () => {
   assert.strictEqual(SignalJournal.MIN_SCORE, 80);
 });
 
+test('journal: tpTouches records completion elapsed minutes for each TP', () => {
+  const entryTime = 1700000000000;
+  // entry 100, risk 10, targetR 3 -> TP1 = 110, TP2 = 120, TP3 = 130
+  const bars = [
+    { t: entryTime + 1 * 300000, h: 112, l: 99, c: 108, o: 100 }, // 5 min: hits TP1 (110)
+    { t: entryTime + 3 * 300000, h: 122, l: 103, c: 119, o: 108 }, // 15 min: hits TP2 (120)
+    { t: entryTime + 6 * 300000, h: 132, l: 108, c: 129, o: 119 }  // 30 min: hits TP3 (130)
+  ];
+  const tp = SignalJournal.tpTouches(bars, 1, 100, 10, 3, entryTime);
+  assert.strictEqual(tp.tp1, true);
+  assert.strictEqual(tp.tp2, true);
+  assert.strictEqual(tp.tp3, true);
+  assert.strictEqual(tp.tp1_min, 5);
+  assert.strictEqual(tp.tp2_min, 15);
+  assert.strictEqual(tp.tp3_min, 30);
+});
+
 // ---------------------------------------------------------------------------
 // Phase C4 — the setup scoring model
 // ---------------------------------------------------------------------------

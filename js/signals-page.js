@@ -136,10 +136,23 @@
     const a = stat(resolved, 'outcome_a');
     const b = stat(resolved, 'outcome_b');
 
-    // TP-hit rate, restricted to rows the tracking migration actually
-    // covers — see TP_TRACKING_SINCE above.
+    // TP-hit rate and completion time metrics
     const tracked = resolved.filter(r => Date.parse(r.resolved_at) >= TP_TRACKING_SINCE);
     const tpRate = key => tracked.length ? tracked.filter(r => r[key]).length / tracked.length * 100 : null;
+
+    const avgDuration = list => {
+      const vals = list.map(r => r.duration_min != null ? r.duration_min : (r.bar_time && r.resolved_bar_time ? Math.round((r.resolved_bar_time - r.bar_time) / 60000) : null)).filter(v => v != null && v > 0);
+      if (!vals.length) return '--';
+      const m = Math.round(vals.reduce((s, v) => s + v, 0) / vals.length);
+      return fmtDuration(m);
+    };
+
+    const avgTpTime = key => {
+      const vals = tracked.filter(r => r[key] != null && r[key] > 0).map(r => r[key]);
+      if (!vals.length) return '--';
+      const m = Math.round(vals.reduce((s, v) => s + v, 0) / vals.length);
+      return fmtDuration(m);
+    };
 
     summaryEl.innerHTML = baseTiles +
       tile('Resolved', resolved.length) +
@@ -151,7 +164,11 @@
       tile('Balanced R · B', fmtR(b.balanced), rColor(b.balanced)) +
       tile('TP1 Hit', tracked.length ? tpRate('tp1_hit').toFixed(0) + '% (n=' + tracked.length + ')' : '--') +
       tile('TP2 Hit', tracked.length ? tpRate('tp2_hit').toFixed(0) + '%' : '--') +
-      tile('TP3 Hit', tracked.length ? tpRate('tp3_hit').toFixed(0) + '%' : '--');
+      tile('TP3 Hit', tracked.length ? tpRate('tp3_hit').toFixed(0) + '%' : '--') +
+      tile('Avg Duration', avgDuration(resolved)) +
+      tile('Avg TP1 Time', avgTpTime('tp1_time_min')) +
+      tile('Avg TP2 Time', avgTpTime('tp2_time_min')) +
+      tile('Avg TP3 Time', avgTpTime('tp3_time_min'));
   }
 
   function renderTabs() {
@@ -251,9 +268,24 @@
     }
   }
 
-  function tpBadge(hit, label) {
+  function fmtDuration(minutes) {
+    if (minutes == null || isNaN(minutes) || minutes < 0) return '--';
+    const m = Math.round(minutes);
+    if (m < 60) return `${m}m`;
+    if (m < 1440) {
+      const h = Math.floor(m / 60);
+      const remM = m % 60;
+      return remM === 0 ? `${h}h` : `${h}h ${remM}m`;
+    }
+    const d = Math.floor(m / 1440);
+    const remH = Math.floor((m % 1440) / 60);
+    return remH === 0 ? `${d}d` : `${d}d ${remH}h`;
+  }
+
+  function tpBadge(hit, label, min) {
     const color = hit ? 'var(--green-text)' : 'var(--text3)';
-    return `<span style="color:${color};font-size:11px;">${label}${hit ? ' ✓' : ''}</span>`;
+    const timeText = (hit && min != null && min > 0) ? ` <span style="font-size:10px;opacity:0.85;">(${fmtDuration(min)})</span>` : '';
+    return `<span style="color:${color};font-size:11px;">${label}${hit ? ' ✓' : ''}${timeText}</span>`;
   }
 
   function renderList(rows, marks) {
@@ -274,8 +306,14 @@
       const tpCell = r.status === 'open'
         ? `${tpBadge(mark != null && (r.direction === 1 ? mark >= tp1 : mark <= tp1), 'TP1')} ${tpBadge(mark != null && (r.direction === 1 ? mark >= tp2 : mark <= tp2), 'TP2')} ${tpBadge(mark != null && (r.direction === 1 ? mark >= tp3 : mark <= tp3), 'TP3')}`
         : tracked
-          ? `${tpBadge(r.tp1_hit, 'TP1')} ${tpBadge(r.tp2_hit, 'TP2')} ${tpBadge(r.tp3_hit, 'TP3')}`
+          ? `${tpBadge(r.tp1_hit, 'TP1', r.tp1_time_min)} ${tpBadge(r.tp2_hit, 'TP2', r.tp2_time_min)} ${tpBadge(r.tp3_hit, 'TP3', r.tp3_time_min)}`
           : '<span style="color:var(--text3);font-size:11px;">not tracked</span>';
+
+      const durMin = r.status === 'open'
+        ? (r.bar_time ? Math.max(0, Math.round((Date.now() - r.bar_time) / 60000)) : null)
+        : (r.duration_min != null ? r.duration_min : (r.bar_time && r.resolved_bar_time ? Math.round((r.resolved_bar_time - r.bar_time) / 60000) : null));
+      const durText = durMin != null ? fmtDuration(durMin) : '--';
+
       return `
       <tr>
         <td>${esc(r.symbol.replace(/USDT$/, ''))} <span style="color:var(--text3);font-size:11px;">${esc(r.market)}</span></td>
@@ -289,6 +327,7 @@
         <td class="mono" style="color:var(--green-text);">${fmtPrice(tp2)}</td>
         <td class="mono" style="color:var(--green-text);">${fmtPrice(tp3)}</td>
         <td style="white-space:nowrap;">${tpCell}</td>
+        <td class="mono" style="font-size:11px;color:var(--text2);">${durText}</td>
         <td class="mono">${r.status === 'open' ? fmtPrice(mark) : '--'}</td>
         <td class="mono" style="color:${rColor(pnlR)}">${r.status === 'open' ? fmtR(pnlR) : '--'}</td>
         <td class="mono" style="color:${rColor(pct)}">${fmtPct(pct)}</td>
@@ -305,7 +344,7 @@
         <table class="flows-table">
           <thead><tr>
             <th>Coin</th><th>Side</th><th>Score</th><th>Trigger</th><th>Regime</th>
-            <th>Entry</th><th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>TP Touches</th>
+            <th>Entry</th><th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>TP Touches</th><th>Duration</th>
             <th>Mark</th><th>PnL</th><th>% to Target</th>
             <th>1R</th><th>Status</th><th>Plan A</th><th>Plan B</th><th>Logged</th>
           </tr></thead>
@@ -341,7 +380,7 @@
       const [listRows, statsRows] = await Promise.all([
         fetch(`${REST}?select=*&order=created_at.desc&limit=${LIST_LIMIT}`, { headers })
           .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); }),
-        fetchAllRows(`${REST}?select=direction,status,outcome_a,outcome_b,tp1_hit,tp2_hit,tp3_hit,resolved_at`, headers)
+        fetchAllRows(`${REST}?select=direction,status,outcome_a,outcome_b,tp1_hit,tp2_hit,tp3_hit,tp1_time_min,tp2_time_min,tp3_time_min,duration_min,bar_time,resolved_bar_time,resolved_at`, headers)
       ]);
       state.rows = listRows;
       state.statsRows = statsRows;

@@ -100,19 +100,29 @@ const SignalJournal = (() => {
    * touches the stop and a TP together counts as the stop, so nothing
    * after that bar is recorded.
    */
-  function tpTouches(bars, direction, entry, risk, targetR) {
+  function tpTouches(bars, direction, entry, risk, targetR, barTime = null) {
     const tR = targetR || 3;
     const stopPx = entry - direction * risk;
     const levels = [1 / 3, 2 / 3, 1].map(f => entry + direction * f * tR * risk);
     const hit = [false, false, false];
-    for (const b of bars) {
+    const hitMinutes = [null, null, null];
+    for (let idx = 0; idx < bars.length; idx++) {
+      const b = bars[idx];
       const stopHit = direction === 1 ? b.l <= stopPx : b.h >= stopPx;
       if (stopHit) break;
       for (let i = 0; i < 3; i++) {
-        if (direction === 1 ? b.h >= levels[i] : b.l <= levels[i]) hit[i] = true;
+        if (!hit[i] && (direction === 1 ? b.h >= levels[i] : b.l <= levels[i])) {
+          hit[i] = true;
+          hitMinutes[i] = (barTime && b.t && b.t >= barTime)
+            ? Math.round((b.t - barTime) / 60000)
+            : (idx + 1) * 5;
+        }
       }
     }
-    return { tp1: hit[0], tp2: hit[1], tp3: hit[2] };
+    return {
+      tp1: hit[0], tp2: hit[1], tp3: hit[2],
+      tp1_min: hitMinutes[0], tp2_min: hitMinutes[1], tp3_min: hitMinutes[2]
+    };
   }
 
   /**
@@ -279,9 +289,14 @@ const SignalJournal = (() => {
       // though it were a result.
       if (!complete && a.reason === 'timeout') continue;
 
-      const tp = tpTouches(window, sig.direction, sig.entry, risk, targetR);
+      const tp = tpTouches(window, sig.direction, sig.entry, risk, targetR, sig.bar_time);
       const targetDist = Math.abs(sig.target - sig.entry);
       const mae = maeMfe(window, sig.direction, sig.entry, risk, targetDist);
+      const resolvedBarTime = window[window.length - 1].t;
+      const durationMin = (sig.bar_time && resolvedBarTime && resolvedBarTime >= sig.bar_time)
+        ? Math.round((resolvedBarTime - sig.bar_time) / 60000)
+        : window.length * 5;
+
       // [t,o,h,l,c] only -- volume adds nothing to a stop-placement study
       // and this is stored for every resolution, keep it lean.
       const path = window.map(bar => [bar.t, bar.o, bar.h, bar.l, bar.c]);
@@ -289,11 +304,13 @@ const SignalJournal = (() => {
         await client().from(TABLE).update({
           status: 'resolved',
           resolved_at: new Date().toISOString(),
-          resolved_bar_time: window[window.length - 1].t,
+          resolved_bar_time: resolvedBarTime,
           outcome_a: +a.r.toFixed(4),
           outcome_b: +b.r.toFixed(4),
           exit_reason: a.reason,
           tp1_hit: tp.tp1, tp2_hit: tp.tp2, tp3_hit: tp.tp3,
+          tp1_time_min: tp.tp1_min, tp2_time_min: tp.tp2_min, tp3_time_min: tp.tp3_min,
+          duration_min: durationMin,
           mae_r: +mae.maeR.toFixed(4), mfe_r: +mae.mfeR.toFixed(4),
           path
         }).eq('id', sig.id).eq('status', 'open');

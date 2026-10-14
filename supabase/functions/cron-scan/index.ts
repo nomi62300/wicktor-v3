@@ -420,21 +420,28 @@ async function resolveOpen(host: string, scannedCandles: Record<string, any>, lo
 
     if (!complete && a.reason === 'timeout') continue;
 
-    const tp = SignalJournal.tpTouches(window, sig.direction, +sig.entry, risk, targetR);
+    const tp = SignalJournal.tpTouches(window, sig.direction, +sig.entry, risk, targetR, sig.bar_time);
     const targetDist = Math.abs(+sig.target - +sig.entry);
     const mae = SignalJournal.maeMfe(window, sig.direction, +sig.entry, risk, targetDist);
     const pathData = window.map((bar: any) => [bar.t, bar.o, bar.h, bar.l, bar.c]);
+
+    const resolvedBarTime = window[window.length - 1].t;
+    const durationMin = (sig.bar_time && resolvedBarTime && resolvedBarTime >= sig.bar_time)
+      ? Math.round((resolvedBarTime - sig.bar_time) / 60000)
+      : window.length * 5;
 
     await pg(`${TABLE}?id=eq.${sig.id}&status=eq.open`, {
       method: 'PATCH',
       body: JSON.stringify({
         status: 'resolved',
         resolved_at: new Date().toISOString(),
-        resolved_bar_time: window[window.length - 1].t,
+        resolved_bar_time: resolvedBarTime,
         outcome_a: +a.r.toFixed(4),
         outcome_b: +b.r.toFixed(4),
         exit_reason: a.reason,
         tp1_hit: tp.tp1, tp2_hit: tp.tp2, tp3_hit: tp.tp3,
+        tp1_time_min: tp.tp1_min, tp2_time_min: tp.tp2_min, tp3_time_min: tp.tp3_min,
+        duration_min: durationMin,
         mae_r: +mae.maeR.toFixed(4), mfe_r: +mae.mfeR.toFixed(4),
         path: pathData
       }),
