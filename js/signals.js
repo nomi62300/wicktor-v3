@@ -28,7 +28,7 @@
 const SignalJournal = (() => {
   const TABLE = 'signal_journal';
   const MIN_SCORE = 80;        // EXCELLENT only — see note above
-  const HOLD_BARS = 48;        // 5M bars before a signal times out (~4h)
+  const HOLD_BARS = 96;        // 5M bars before a signal times out (96 * 5m = 480m = ~8h)
   const BAR_MS = 5 * 60 * 1000;
 
   // [fractionOfTarget, fractionClosed, stopMovesToRmultipleOfTarget]

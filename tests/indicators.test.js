@@ -251,8 +251,10 @@ test('analyzeTimeframe RSI value matches rsi(realCandles)[lastIdx]', () => {
 
 test('fractals output on real candles is unaffected by heikinAshi', () => {
   const candles = buildCleanUptrend(80);
-  // Insert a spike to create a confirmed fractal high at bar 30
-  candles[30] = { t: 30, o: 200, h: 999, l: 199, c: 200, v: 1000 };
+  // Insert a spike to create a confirmed fractal high at bar 30 in real candles,
+  // but smoothed/shifted in Heikin Ashi
+  candles[30] = { t: 30, o: 100, h: 120, l: 99, c: 100, v: 1000 };
+  candles[31] = { t: 31, o: 100, h: 110, l: 99, c: 200, v: 1000 };
   const frac = Indicators.fractals(candles);
   // Real-candle fractals should detect the spike at 30
   assert.ok(frac.up.includes(30), `Expected fractal up at bar 30, got ${JSON.stringify(frac.up)}`);

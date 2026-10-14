@@ -25,10 +25,15 @@ Zero build steps. Plain HTML, CSS, and modern JavaScript running natively in the
 - Uses the 15M RSI 50 midline to filter out low-conviction counter-trend trades.
 - Longs must maintain RSI $\ge 50$ and Shorts must hold RSI $\le 50$ to receive the $+10$ momentum bonus; counter-momentum trades are penalized and demoted to AVOID.
 
-### 4. Direct Client-Side Live Scanner
-- Runs directly inside the browser using Bybit's public API klines, completely independent of the legacy v2 cloud database.
-- Evaluates top liquid perpetuals live every 3 minutes, with an on-demand **Live Scan** button in the header.
-- Dynamic coin search: type any asset (e.g. `FLUID`, `AVA`, `NEAR`) into the search bar to score it live on the fly.
+### 4. Cloud Auto-Scanning & Enhanced 850+ Coin Universe
+- Runs autonomously in the Tokyo Supabase edge runtime every 5 minutes (`wicktor-scan-spot` and `wicktor-scan-linear`).
+- Enhanced to scan **500 Spot and 500 Linear perpetuals**, capturing 100% of all tradeable spot pairs on Bybit (386 coins) plus top 466 liquid contracts (~852 coins total per merged cycle).
+- The web client automatically hydrates the newest snapshot and renders a dynamic 1-second countdown timer to the next scan.
+- On-demand search: search any asset (e.g. `FLUID`, `AVA`, `NEAR`) to evaluate live Bybit klines on the fly.
+
+### 5. Extended 8-Hour Trade Horizon (96 Bars)
+- Signal resolution window extended from 4 hours (48 bars) to **8 hours (96 bars)** (`HOLD_BARS = 96`).
+- Gives 3R swing runners and 15M structural expansions adequate time to develop without premature mark-to-market cutoffs.
 
 ---
 

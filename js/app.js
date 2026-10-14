@@ -7,7 +7,7 @@
   // features/priorities, MAJOR for breaking/fundamental behavior changes.
   // Keep in sync with package.json's version and the git tag on this
   // commit. See CHANGELOG.md for what changed at each version.
-  const APP_VERSION = '3.1.0';
+  const APP_VERSION = '3.2.0';
 
   const STORAGE_KEYS = {
     theme: 'wicktor:theme',
@@ -63,7 +63,7 @@
   const MAINTENANCE_MODE = false;
 
   const DEFAULT_SETTINGS = {
-    universeSize: 350,
+    universeSize: 500,
     refreshIntervalSec: 300,
     includeCryptoSpot: true,
     includeStocks: false,
@@ -847,7 +847,7 @@
     el.settingsPanel.classList.add('open');
   }
   function closeSettings() {
-    state.settings.universeSize = Math.max(10, Math.min(350, parseInt(el.universeInput.value) || 350));
+    state.settings.universeSize = Math.max(10, Math.min(500, parseInt(el.universeInput.value) || 500));
     state.settings.refreshIntervalSec = Math.max(1, Math.min(10, parseInt(el.refreshInput.value) || 5)) * 60;
     state.settings.includeCryptoSpot = el.cryptoSpotToggle.checked;
     state.settings.includeStocks = el.stocksToggle.checked;
@@ -960,8 +960,11 @@
   // ------------------------------------------------------------ Scheduling
   function scheduleRefresh() {
     if (state.refreshTimer) clearInterval(state.refreshTimer);
-    // Periodically re-scan top liquid perpetuals live every 3 minutes
-    state.refreshTimer = setInterval(() => performLocalScan({ universeSize: 35 }), 3 * 60 * 1000);
+    // Two independent cadences: poll for a newer stored scan every minute,
+    // and tick the countdown every second.
+    state.refreshTimer = setInterval(() => loadSnapshot(), SNAPSHOT_POLL_MS);
+    if (state.countdownTimer) clearInterval(state.countdownTimer);
+    state.countdownTimer = setInterval(updateNextScanLabel, 1000);
     setInterval(() => refreshMarketContext().catch(() => {}), 5 * 60 * 1000);
   }
 
@@ -969,7 +972,7 @@
   function bindStaticEvents() {
     el.themeBtn.addEventListener('click', toggleTheme);
     if (el.scanBtn) {
-      el.scanBtn.addEventListener('click', () => performLocalScan({ universeSize: 35 }));
+      el.scanBtn.addEventListener('click', () => loadSnapshot({ force: true }));
     }
     el.settingsBtn.addEventListener('click', openSettings);
     el.settingsClose.addEventListener('click', closeSettings);
@@ -1321,7 +1324,7 @@
     initAccessGate(() => {
       bindStaticEvents();
       scheduleRefresh();
-      refreshMarketContext().then(() => performLocalScan({ universeSize: 35 }));
+      refreshMarketContext().then(() => loadSnapshot({ force: true }));
       // Additive to the access gate above, not gated behind it in either
       // direction — Auth has its own independent session, unrelated to
       // the beta access-code check.

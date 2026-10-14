@@ -4,6 +4,22 @@ All notable changes to Wicktor are documented in this file, in the
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. This
 project uses [Semantic Versioning](https://semver.org/).
 
+## [v3.2.0] - Extended 8-Hour Trade Horizon, Enhanced 500-Coin Universe & Automated Scanning Cadence
+
+### Added & Changed
+- **Extended Timeout Horizon (`js/signals.js` & `cron-scan/index.ts`):**
+  - Extended `HOLD_BARS` from 48 bars (4 hours) to 96 bars (8 hours, $96 \times 5\text{m} = 480\text{m}$).
+  - Allows 15M swing structures and 3R runner setups sufficient runway to develop and reach full targets without prematurely exiting at the 4-hour mark.
+- **Enhanced Universe Size to 500 Coins (`supabase/migrations/` & `cron.job`):**
+  - Upgraded background scanner `universe_size` parameter from 350 to 500 across `wicktor-scan-spot` and `wicktor-scan-linear`.
+  - Captures 100% of all tradeable Bybit spot pairs (386 coins) and top 466 linear contracts, expanding the live evaluated snapshot to **852 coins**.
+  - Updated default `universeSize` in `js/app.js` to 500 with user settings cap expanded to 500.
+- **Automated Scan Polling & Topbar Countdown (`index.html` & `js/app.js`):**
+  - Restored automated dual-cadence scheduling: 1-minute cloud snapshot polling (`loadSnapshot`) and 1-second dynamic countdown timer (`updateNextScanLabel`).
+  - Removed manual header scan button in favor of automated hands-off background scanning.
+- **Test Suite Verification (`tests/indicators.test.js`):**
+  - All 138 indicator and scoring unit tests passing cleanly (0 failures).
+
 ## [v3.1.0] - Safu Bot TA Integration: Extreme Wick Rejection & RSI 50 Momentum Gate
 
 ### Added

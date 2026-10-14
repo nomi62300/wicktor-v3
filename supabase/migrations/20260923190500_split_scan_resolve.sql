@@ -53,7 +53,7 @@ select cron.schedule(
   '*/5 * * * *',
   $$
   select net.http_post(
-    url := 'https://laqytygibnlpdohouxaq.supabase.co/functions/v1/cron-scan?universe_size=350&stage=scan-spot',
+    url := 'https://laqytygibnlpdohouxaq.supabase.co/functions/v1/cron-scan?universe_size=500&stage=scan-spot',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
       'Authorization', 'Bearer ' || (
@@ -74,7 +74,7 @@ select cron.schedule(
   '1-59/5 * * * *',
   $$
   select net.http_post(
-    url := 'https://laqytygibnlpdohouxaq.supabase.co/functions/v1/cron-scan?universe_size=350&stage=scan-linear',
+    url := 'https://laqytygibnlpdohouxaq.supabase.co/functions/v1/cron-scan?universe_size=500&stage=scan-linear',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
       'Authorization', 'Bearer ' || (
