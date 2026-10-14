@@ -47,11 +47,9 @@
   // .map(x => x.toString(16).padStart(2,'0')).join(''))) ), paste it below,
   // and tell testers the new plaintext code.
   //
-  // Rotated 2026-08-24 as part of the maintenance-lockdown update — the
-  // new code is deliberately NOT distributed to testers yet (see
-  // MAINTENANCE_MODE below); this rotation exists to invalidate everyone
-  // previously granted access under the old code while maintenance is on.
-  const ACCESS_CODE_HASH = 'f226665e607a385afb535cd340ab5f756f9dccd4c3c21f3fa1fc2e01fa130c44';
+  // Rotated for Wicktor v3 testing: code 'wkt-v3-test'.
+  // Automatically invalidates previously granted sessions in local storage.
+  const ACCESS_CODE_HASH = 'dec30e90b788c6cc05478306f1dbf8ad3614dc5650385f390e57d2900687e2d1';
 
   // Hard gate shown to literally every visitor, checked before the access
   // gate and before anything else in init() — even someone who already has

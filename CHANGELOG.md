@@ -17,6 +17,11 @@ project uses [Semantic Versioning](https://semver.org/).
   - Awards a `+10` bonus if RSI is aligned with trade direction (Long with RSI $\ge 50$ or Short with RSI $\le 50$).
   - Deducts `-10` if trading against intraday intermediate momentum, filtering out low-quality counter-trend noise.
 
+### Changed
+- **Beta Access Code Rotated (`js/app.js`):**
+  - Rotated the gate access code to `wkt-v3-test` (`SHA-256: dec30e90b788c6cc05478306f1dbf8ad3614dc5650385f390e57d2900687e2d1`).
+  - Automatically revokes previously granted browser sessions in `localStorage`, prompting users for the new code on next visit.
+
 ### Verified & Benchmarked
 - **Empirical Backtest over 8,944 signals (`tools/backtest-v2.js`):**
   - Evaluated across 3 historical market regimes (+25% bull drift, +1.2% flat drift, -4.7% bear drift).

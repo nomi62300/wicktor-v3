@@ -49,6 +49,8 @@ python3 -m http.server 8000
 # Open http://localhost:8000 in your browser
 ```
 
+> **Access Code:** The test gate code for Wicktor v3 is `wkt-v3-test`.
+
 ---
 
 ## Testing & Backtesting Suite
