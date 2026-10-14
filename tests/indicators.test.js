@@ -780,9 +780,10 @@ test('C4: a setup with no structural level to stop against is capped', () => {
   const withStructure = Scoring.scoreSetup(
     [c4Snap({}), c4Snap({}), c4Snap({ triggers: [TRIG('stochCrossFromExtreme', 1)] })],
     { score: 60, items: [] }, emptyArm, emptyArm);
-  // context TF (index 0) supplies the stop; strip its levels entirely
+  // both confirm TF (index 1) and context TF (index 0) supply structure; strip levels from both
   const noStructure = Scoring.scoreSetup(
-    [c4Snap({ levelsAbove: [], levelsBelow: [] }), c4Snap({}),
+    [c4Snap({ levelsAbove: [], levelsBelow: [] }),
+     c4Snap({ levelsAbove: [], levelsBelow: [] }),
      c4Snap({ triggers: [TRIG('stochCrossFromExtreme', 1)] })],
     { score: 60, items: [] }, emptyArm, emptyArm);
   assert.strictEqual(noStructure.gated, true);
@@ -790,19 +791,19 @@ test('C4: a setup with no structural level to stop against is capped', () => {
   assert.ok(withStructure.score > noStructure.score);
 });
 
-test('C4: the stop rides the CONTEXT timeframe, not the entry timeframe', () => {
-  // context (index 0) has distant structure; entry (index 2) has tight structure.
-  // The fee fix depends on the wider one being used.
+test('v3: the stop rides the local confirm timeframe structure, not the wide 1H context', () => {
+  // context (index 0) has distant structure (~13%); confirm (index 1) has local swing structure (~2.25%).
+  // v3 prefers the local confirm swing stop for scalp trades.
   const r = Scoring.scoreSetup(
     [c4Snap({ close: 100, atr: 4, levelsBelow: [88], levelsAbove: [130] }),
-     c4Snap({}),
+     c4Snap({ close: 100, atr: 1, levelsBelow: [98], levelsAbove: [102] }),
      c4Snap({ close: 100, atr: 1, levelsBelow: [99.5], levelsAbove: [101],
               triggers: [TRIG('stochCrossFromExtreme', 1)] })],
     { score: 60, items: [] }, emptyArm, emptyArm);
   assert.ok(r.riskReward, 'risk:reward computed');
-  // an entry-TF stop would be ~0.75% of price; the context stop is ~13%
-  assert.ok(r.riskReward.riskPct > 5,
-    `expected the wide context stop, got riskPct ${r.riskReward.riskPct}`);
+  // confirm stop is ~2.25% (98 + 0.25 buffer); wide context stop would be ~13%
+  assert.ok(r.riskReward.riskPct < 5.0 && r.riskReward.riskPct > 1.0,
+    `expected the local confirm swing stop, got riskPct ${r.riskReward.riskPct}`);
 });
 
 test('C4: scalp mode does not decay trigger age, swing mode does', () => {
@@ -986,16 +987,16 @@ test('C3: analyzeTimeframe exposes triggers with sane shape', () => {
 const rrBase = { close: 100, atr: 1, levelsAbove: [101, 103, 106], levelsBelow: [99, 97, 94] };
 const RRP = () => Indicators.RR_PARAMS;
 
-test('C2 rr: target is a fixed PRICE MOVE, so the ratio varies with stop width', () => {
+test('v3 rr: target is a dynamic 3R multiple of structural risk (TP1=1R, TP2=2R, TP3=3R)', () => {
   const r = Indicators.riskReward(rrBase, 1);
   // stop 100 -> 99 plus a 0.25 ATR buffer = 1.25 risk
   assert.ok(Math.abs(r.riskAtr - 1.25) < 1e-9, `expected 1.25 ATR risk, got ${r.riskAtr}`);
-  // Target is targetPct of ENTRY, not a multiple of risk: a 3R-style fixed
-  // multiple meant a 1.5% move for one signal and a 75% move for another,
-  // and hit its objective on 4.7% of trades.
-  assert.ok(Math.abs(r.target - (100 + 100 * RRP().targetPct / 100)) < 1e-9);
-  // ratio is now an OUTPUT of the two distances, never an input
-  assert.ok(Math.abs(r.ratio - (100 * RRP().targetPct / 100) / 1.25) < 1e-9);
+  // Target is 3R of risk distance: 100 + 3 * 1.25 = 103.75
+  assert.ok(Math.abs(r.target - 103.75) < 1e-9, `expected target 103.75, got ${r.target}`);
+  assert.ok(Math.abs(r.tp1 - 101.25) < 1e-9, `expected tp1 101.25, got ${r.tp1}`);
+  assert.ok(Math.abs(r.tp2 - 102.50) < 1e-9, `expected tp2 102.50, got ${r.tp2}`);
+  assert.ok(Math.abs(r.tp3 - 103.75) < 1e-9, `expected tp3 103.75, got ${r.tp3}`);
+  assert.strictEqual(r.ratio, 3.0);
   // the nearest real level is still surfaced, as the likely stall point
   assert.strictEqual(r.firstObstacle, 101);
   assert.ok(Math.abs(r.structuralTargetR - (1 / 1.25)) < 1e-9);

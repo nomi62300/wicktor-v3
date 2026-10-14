@@ -199,7 +199,9 @@ const Render = (() => {
     if (!rr || !rr.entry || !rr.stop || !rr.target || !coin.setupDirection) return '';
 
     const dist = rr.target - rr.entry;
-    const tp1 = rr.entry + dist / 3, tp2 = rr.entry + dist * 2 / 3;
+    const tp1 = rr.tp1 != null ? rr.tp1 : (rr.entry + dist / 3);
+    const tp2 = rr.tp2 != null ? rr.tp2 : (rr.entry + dist * 2 / 3);
+    const tp3 = rr.tp3 != null ? rr.tp3 : rr.target;
     const slColor = 'var(--red-text)', tpColor = 'var(--green-text)';
 
     const sizing = positionSizing(rr, coin.market, settings.accountSize, settings.riskPerTradePct);
@@ -232,21 +234,21 @@ const Render = (() => {
           <div class="trade-plan-value" style="color:${slColor}">$${esc(formatPriceForDisplay(rr.stop))}</div>
         </div>
         <div class="trade-plan-item">
-          <div class="trade-plan-label">TP3</div>
-          <div class="trade-plan-value" style="color:${tpColor}">$${esc(formatPriceForDisplay(rr.target))}</div>
+          <div class="trade-plan-label">TP3 (3R)</div>
+          <div class="trade-plan-value" style="color:${tpColor}">$${esc(formatPriceForDisplay(tp3))}</div>
         </div>
       </div>
       <div class="trade-plan-tps">
         <div class="trade-plan-item">
-          <div class="trade-plan-label">TP1</div>
+          <div class="trade-plan-label">TP1 (1R)</div>
           <div class="trade-plan-value" style="color:${tpColor}">$${esc(formatPriceForDisplay(tp1))}</div>
         </div>
         <div class="trade-plan-item">
-          <div class="trade-plan-label">TP2</div>
+          <div class="trade-plan-label">TP2 (2R)</div>
           <div class="trade-plan-value" style="color:${tpColor}">$${esc(formatPriceForDisplay(tp2))}</div>
         </div>
         <div class="trade-plan-item">
-          <div class="trade-plan-label">1R</div>
+          <div class="trade-plan-label">1R Risk</div>
           <div class="trade-plan-value">${rr.riskPct.toFixed(2)}%</div>
         </div>
       </div>

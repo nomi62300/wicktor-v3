@@ -252,13 +252,16 @@ const Scoring = (() => {
     raw -= reversal.score * 0.25;
     raw -= Math.max(0, exhaustion.score - 25) * 0.2;
 
-    // Stop rides the CONTEXT timeframe's structure, not the entry's. On 5M
-    // entries a 5M stop is ~0.255% of price against a 0.110% taker round
-    // trip, so fees alone cost 0.43R and erase a +0.082R gross edge; a 1H
-    // stop puts 1R at 0.952%, cutting fees to 0.115R while raising gross to
-    // +0.127R. See riskReward()'s own note for the full measurement.
+    // Stop rides the local swing structure: prefers the confirmation (15M)
+    // timeframe's local swing level if available on the losing side, falling back
+    // to the context (1H) structure or entry snapshot.
+    const confirmUsable = confirmSnap && (direction === 1
+      ? (confirmSnap.levelsBelow || []).some(l => l < entrySnap.close)
+      : (confirmSnap.levelsAbove || []).some(l => l > entrySnap.close));
+    const stopSource = confirmUsable ? confirmSnap : (tfSnapshots[mode.context] || entrySnap);
+
     const rr = Indicators.riskReward(entrySnap, direction, {
-      stopFrom: tfSnapshots[mode.context] || entrySnap
+      stopFrom: stopSource
     });
     let gated = false;
     if (rr && !rr.viable) { raw = Math.min(raw, NO_RR_CAP); gated = true; }

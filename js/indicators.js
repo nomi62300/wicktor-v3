@@ -722,97 +722,37 @@ const Indicators = (() => {
     stopBufferAtr: 0.25,
     minStopAtr: 0.4,
     fallbackStopAtr: 1.0,
-    targetPct: 1.0,       // objective as % of ENTRY PRICE — see the note below
-    minRiskPct: 1.0,      // below this, fees are unwinnable
-    maxRiskPct: 25.0      // above this the structure is pathological
+    targetR: 3.0,         // objective as R-multiple of risk distance (TP1=1R, TP2=2R, TP3=3R)
+    minRiskPct: 0.8,      // below this, exchange fees cost too much edge
+    maxRiskPct: 4.0       // above this, stop is too wide for an intraday scalp setup
   };
 
   // Stamped onto every journalled signal BY THE CLIENT, so a browser running
   // cached JavaScript labels its rows honestly instead of inheriting a
   // database default that describes code it is not running. Bump this
   // whenever the trade geometry above changes.
-  const MODEL_VERSION = 'v2.2-near-target';
+  const MODEL_VERSION = 'v3.0-dynamic-swing-rr';
 
   /**
-   * `stopFrom` is the snapshot whose structure the stop rides, and it
-   * DEFAULTS TO A HIGHER TIMEFRAME than the entry. That is the fee fix, and
-   * it is the single most consequential number in the model:
+   * Wicktor v3 Risk:Reward Engine:
    *
-   *   fees in R = (fee % of price) / (1R as % of price)
+   * 1. Dynamic Local Swing Stop:
+   *    Stops anchor to the local confirmation/entry structure (15M or 5M
+   *    swing high/low + ATR buffer), clamped between minRiskPct (0.8%) and
+   *    maxRiskPct (4.0%). This prevents the old v2 trap where a 1H stop
+   *    was 4-8% away on a 5M trigger.
    *
-   * Only the stop appears in that. A 5M structural stop is far too tight to
-   * survive it; riding the 1H structure is what makes the model viable.
+   * 2. True R-Multiple Targets:
+   *    Targets are strictly coupled to the actual risk distance:
+   *      TP1 = 1.0R (1:1 Reward-to-Risk)
+   *      TP2 = 2.0R (2:1 Reward-to-Risk)
+   *      TP3 = 3.0R (3:1 Reward-to-Risk / Runner)
    *
-   * CORRECTION (measured 2026-08-25, tools/analyze-riskpct.js). The "1R =
-   * 0.952% of price" figure previously quoted here came from
-   * sweep-stop-target.js, which was NOT computing what this function does:
-   * it took levelsBelow[0] unfiltered — a 1H level can sit on the wrong side
-   * of a 5M close, yielding a meaninglessly small distance — and buffered
-   * with the 5M ATR. This function filters to levels genuinely against the
-   * trade and buffers with the STOP source's ATR. Production 1R is therefore
-   * a MEDIAN OF ~2.4%, ranging from under 1% to over 25%, not 0.952%.
-   * The choice of 1H still stands; only the absolute figure was wrong.
-   *
-   * That correction is what motivates the floor and the cap below.
-   *
-   * The buffer and floor are measured in the STOP source's own ATR, since
-   * that is the timeframe whose noise could wick you out of that level.
-   *
-   * TARGET IS A PRICE MOVE, NOT AN R-MULTIPLE. This replaces the fixed 3R,
-   * and the reason is the correction above: when 1R ranges from 0.5% to 25%
-   * of price, "3R" means a 1.5% move for one signal and a 75% move for
-   * another. The market does not care how far away your invalidation level
-   * sits. Measured, the fixed 3R hit its target on 4.7% of trades and timed
-   * out on 74.8% — it was not a 3R strategy at all, it was a four-hour hold
-   * scored at mark-to-market.
-   *
-   * Both fixture sets agree on a ~4% objective, which is why it was chosen:
-   *
-   *              1%      2%      3%      4%      5%      (target move)
-   *   out-samp  +.057   +.067   +.076   +.086   +.097
-   *   in-samp   +.051   +.068   +.087   +.094   +.085
-   *
-   * The R-multiple framing does NOT survive the same test — the two sets
-   * disagree completely on the best multiple (0.75R out-of-sample, 2R
-   * in-sample), which is what a fitted parameter looks like. Agreement
-   * across independent periods is the whole reason to prefer this form.
-   *
-   * REVISED 2026-09-07: targetPct 4.0 -> 1.0, and MODEL_VERSION bumped to
-   * v2.2-near-target so the two geometries never mix in the journal.
-   * The 4% figure above came from FIXTURE backtests. Four thousand
-   * REAL logged trades disagree with it: 4% is the worst or near-worst
-   * setting in all four panels (in/out-of-sample x exit plan A/B), and
-   * the median trade only ever travels ~29% of the way to it. Measured
-   * PAIRED (same trades, both exit rules, so the fee cancels and the
-   * comparison is not two noisy independent means):
-   *
-   *            2.4%    2.0%    1.6%    1.2%    1.0%    0.8%   (target move)
-   *   IS  A   +.009   +.004   +.004   +.015   +.014   +.011
-   *   OOS A   +.011   +.020*  +.024*  +.020   +.024   +.019
-   *   IS  B   +.006   +.007   +.006   -.000   +.008   +.008
-   *   OOS B   +.002   +.015   +.023*  +.022*  +.023   +.030*
-   *                                     (* = 95% CI excludes zero)
-   *
-   * 11 of 12 deltas positive, the exception being -0.0001. Significance
-   * only appears out-of-sample; the evidence here is the CONSISTENCY of
-   * the sign across four independent panels, not any single starred cell.
-   * 1.0% has the best four-panel average (+0.017R) and sits mid-plateau
-   * rather than on a sharp peak — 1.6%-0.8% are all within noise of each
-   * other, so the exact point inside that range is not what matters.
-   *
-   * ⚠️ This makes a LOSING model lose less. It does not make it
-   * profitable: ~-0.077R becomes roughly -0.06R. It was shipped because
-   * the scanner is logging anyway and a bumped MODEL_VERSION buys a clean
-   * A/B against the 4,269 rows already recorded at 4% — not because the
-   * model is believed to work. See project memory: five straight
-   * pre-registered hypotheses have failed.
-   *
-   * The floor is the other half. Below ~1% risk, the 0.11% taker round trip
-   * costs more than 0.11R and the edge cannot cover it: that bucket loses
-   * at EVERY target tested (-0.18R to -0.25R). Both the floor and the cap
-   * report through `viable`, which scoring.js already uses to cap the score
-   * at NO_RR_CAP — so an unwinnable-by-fees setup can no longer reach
-   * EXCELLENT no matter how good its structure looks.
+   * 3. Strict Viability Gate:
+   *    A trade is viable only if:
+   *      - It has real structural backing (stopFromStructure)
+   *      - Risk % is within the fee floor and scalp ceiling (feeViable)
+   *      - Reward:Risk ratio >= 1.0 (ratioViable)
    */
   function riskReward(entrySnap, direction, opts = {}) {
     const t = Object.assign({}, RR, opts.params);
@@ -827,7 +767,7 @@ const Indicators = (() => {
     const toward = direction === 1 ? (entrySnap.levelsAbove || []) : (entrySnap.levelsBelow || []);
 
     // --- stop -------------------------------------------------------------
-    // The level must actually sit on the losing side of THIS entry: a 1H
+    // The level must actually sit on the losing side of THIS entry: a 15M/1H
     // swing low can be above a 5M close, which would put the stop in profit.
     const usable = against.filter(l => direction === 1 ? l < close : l > close);
     let riskDist, stopFromStructure;
@@ -845,34 +785,53 @@ const Indicators = (() => {
     if (flooredStop) riskDist = t.minStopAtr * stopAtr;
 
     // --- target -----------------------------------------------------------
-    // A fixed share of PRICE, so the objective stays a move the market can
-    // actually deliver inside the hold window regardless of stop width.
-    const rewardDist = close * (t.targetPct / 100);
+    // Target is an R-multiple of the actual structural risk distance.
+    // In v3, targetR is by default 3.0 (with TP1=1R, TP2=2R, TP3=3R).
+    // If opts.targetPct or t.targetPct is explicitly provided (e.g. legacy test),
+    // support it gracefully; otherwise use targetR.
+    let rewardDist;
+    if (opts.targetPct != null || (t.targetPct != null && t.targetR == null)) {
+      const tp = opts.targetPct != null ? opts.targetPct : t.targetPct;
+      rewardDist = close * (tp / 100);
+    } else {
+      const tr = (opts.targetR != null) ? opts.targetR : (t.targetR || 3.0);
+      rewardDist = riskDist * tr;
+    }
+
     // The nearest real level in the trade's direction is still reported, so
     // the UI can show where price is likely to stall on the way.
     const structuralNext = toward.length ? toward[0] : null;
 
     const riskPct = (riskDist / close) * 100;
+    const rewardPct = (rewardDist / close) * 100;
+    const ratio = rewardDist / riskDist;
+
     // Fees are charged on price, not on R: at 1R under minRiskPct the round
-    // trip costs more than the measured edge, whatever the target. Too wide
-    // and the "stop" is no longer describing this trade's structure.
+    // trip costs more than the measured edge. Too wide and the setup is not
+    // a valid scalping opportunity.
     const feeViable = riskPct >= t.minRiskPct && riskPct <= t.maxRiskPct;
+    const ratioViable = ratio >= 1.0;
 
     return {
       entry: close,
       stop: close - direction * riskDist,
       target: close + direction * rewardDist,
+      tp1: close + direction * riskDist,
+      tp2: close + direction * (riskDist * 2),
+      tp3: close + direction * (riskDist * 3),
+      riskDist,
+      rewardDist,
       firstObstacle: structuralNext,
       structuralTargetR: structuralNext != null ? Math.abs(structuralNext - close) / riskDist : null,
       riskAtr: riskDist / entryAtr,        // expressed in ENTRY-TF ATR, for display
       riskPct,                             // what actually determines fee burden
       rewardAtr: rewardDist / entryAtr,
-      rewardPct: t.targetPct,
-      ratio: rewardDist / riskDist,        // now VARIES — it is an output, not an input
+      rewardPct,
+      ratio,
       stopFromStructure,
       stopWidenedToFloor: flooredStop,
       feeViable,
-      viable: stopFromStructure && feeViable
+      viable: stopFromStructure && feeViable && ratioViable
     };
   }
 

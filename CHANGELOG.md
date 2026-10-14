@@ -4,7 +4,29 @@ All notable changes to Wicktor are documented in this file, in the
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. This
 project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased] - on branch `terminal-build/phase-0-1`
+## [v3.0.0] - Wicktor v3: Dynamic Local Swing R:R & Inverted Geometry Fix
+
+### Added / Changed
+- **Dynamic Local Swing Stop Loss:** Stops now anchor to the confirmation (15M)
+  timeframe's local swing high/low + ATR buffer, rather than defaulting to the wide
+  1H context fractal. Bounded between `minRiskPct: 0.8%` (protects against fee
+  degradation) and `maxRiskPct: 4.0%` (rejects unsuitably wide setups for scalping).
+  Falls back to 1H context or entry snapshot if no valid 15M structure exists on
+  the losing side.
+- **Coupled R-Multiple Targets (1R / 2R / 3R):** Replaced the decoupled 1.0% price move
+  target with true dynamic R-multiples:
+  - TP1: 1.0R (1:1 Reward-to-Risk)
+  - TP2: 2.0R (2:1 Reward-to-Risk)
+  - TP3: 3.0R (3:1 Reward-to-Risk / Runner)
+  Completely eliminates the inverted R:R flaw (e.g. NEAR risking $10 to make $1.65).
+- **Strict Viability Gate:** `rr.viable` now requires `ratio >= 1.0` in addition to
+  structural backing and fee bounds. Trades with inverted R:R cannot pass viability
+  and are capped at 45 (AVOID).
+- **Display Upgrade:** Trade cards explicitly label `TP1 (1R)`, `TP2 (2R)`, `TP3 (3R)`,
+  and `1R Risk` percentage.
+- **Model Version Bumped:** `MODEL_VERSION` set to `v3.0-dynamic-swing-rr`.
+
+## [v2.2.0] - on branch `main`
 
 Phase 0 + Phase 1 done unsupervised overnight; Phase 2, Phase 6, Phase 7,
 Phase 8, outcome-logging, OI 15m%, the extended 7-TF panel, the
