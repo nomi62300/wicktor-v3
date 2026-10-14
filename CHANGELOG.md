@@ -16,11 +16,19 @@ project uses [Semantic Versioning](https://semver.org/).
   - Evaluates 15M confirmation timeframe RSI against the midpoint line (50).
   - Awards a `+10` bonus if RSI is aligned with trade direction (Long with RSI $\ge 50$ or Short with RSI $\le 50$).
   - Deducts `-10` if trading against intraday intermediate momentum, filtering out low-quality counter-trend noise.
+- **Direct Client-Side Live Scanner (`performLocalScan` in `js/app.js`):**
+  - Enabled direct in-browser Bybit scanning that evaluates real-time market klines directly with the v3 engine.
+  - Completely isolates Wicktor v3 from the legacy v2 Supabase cloud database, allowing zero-risk independent testing.
+  - Added **Live Scan** trigger button in header and an automatic 3-minute client-side scan cycle.
+  - Added on-demand live coin search (`searchCoinLive`): searching for any asset (e.g. `FLUID`, `AVA`, `NEAR`) fetches Bybit klines and calculates its v3 trade plan instantly.
 
 ### Changed
 - **Beta Access Code Rotated (`js/app.js`):**
   - Rotated the gate access code to `wkt-v3-test` (`SHA-256: dec30e90b788c6cc05478306f1dbf8ad3614dc5650385f390e57d2900687e2d1`).
   - Automatically revokes previously granted browser sessions in `localStorage`, prompting users for the new code on next visit.
+- **Asset Version Bumping (`index.html` & `package.json`):**
+  - Bumped all script cache-busting query strings in `index.html` from `?v=2.2.1` to `?v=3.1.0` to force browsers to discard stale cached scripts.
+  - Updated `package.json` and `APP_VERSION` to `3.1.0`.
 
 ### Verified & Benchmarked
 - **Empirical Backtest over 8,944 signals (`tools/backtest-v2.js`):**

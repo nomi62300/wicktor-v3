@@ -7,7 +7,7 @@
   // features/priorities, MAJOR for breaking/fundamental behavior changes.
   // Keep in sync with package.json's version and the git tag on this
   // commit. See CHANGELOG.md for what changed at each version.
-  const APP_VERSION = '1.3.0';
+  const APP_VERSION = '3.1.0';
 
   const STORAGE_KEYS = {
     theme: 'wicktor:theme',
@@ -101,7 +101,9 @@
     modalCoin: null,
     newsCache: {},        // symbol -> news result
     newsData: null,       // shared feed, re-fetched with market context
-    snapshotAt: null      // captured_at (ms) of the loaded scan snapshot
+    snapshotAt: null,     // captured_at (ms) of the loaded scan snapshot
+    isScanning: false,
+    searchDebounce: null
   };
 
   function loadJson(key, fallback) {
@@ -155,6 +157,7 @@
     signalJournalClose: document.getElementById('signal-journal-close'),
     signalJournalBody: document.getElementById('signal-journal-body'),
     search: document.getElementById('search-input'),
+    scanBtn: document.getElementById('scan-btn'),
     nextScan: document.getElementById('next-scan'),
     themeBtn: document.getElementById('theme-btn'),
     settingsBtn: document.getElementById('settings-btn'),
@@ -340,6 +343,128 @@
       if (!state.coins.length) {
         el.cardGrid.innerHTML = '<div class="empty-state">Could not reach the scan server. Retrying shortly.</div>';
       }
+    }
+  }
+
+  /**
+   * Wicktor v3 — Direct In-Browser Live Scanner
+   * Fetches real-time candles from Bybit for the top liquid perpetuals,
+   * runs the v3 scoring and dynamic local swing SL + 1R/2R/3R trade plan
+   * directly in the browser, completely client-side.
+   */
+  async function performLocalScan({ universeSize = 35 } = {}) {
+    if (state.isScanning) return;
+    state.isScanning = true;
+    if (el.scanBtn) {
+      el.scanBtn.disabled = true;
+      el.scanBtn.innerHTML = '<span style="display:inline-block;width:10px;height:10px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:4px;"></span><span>Scanning...</span>';
+    }
+    el.nextScan.textContent = 'Scanning live market with v3 engine...';
+
+    try {
+      const tickers = await Api.bybitTickers('linear');
+      if (!tickers || !tickers.length) throw new Error('No Bybit tickers returned');
+
+      const eligible = tickers
+        .filter(t => Api.isTradeableUsdtPair(t.symbol))
+        .sort((a, b) => parseFloat(b.turnover24h || 0) - parseFloat(a.turnover24h || 0))
+        .slice(0, universeSize);
+
+      const scoredCoins = [];
+      const BATCH = 5;
+
+      for (let i = 0; i < eligible.length; i += BATCH) {
+        const chunk = eligible.slice(i, i + BATCH);
+        el.nextScan.textContent = `v3 Scanning ${i + 1}-${Math.min(i + BATCH, eligible.length)} of ${eligible.length}...`;
+        await Promise.all(chunk.map(async (tk) => {
+          try {
+            const sym = tk.symbol;
+            const price = parseFloat(tk.lastPrice || 0);
+            const [h4, h1, m15, m5] = await Promise.all([
+              Api.bybitKlines('linear', sym, '4h', 100).catch(() => null),
+              Api.bybitKlines('linear', sym, '1h', 100).catch(() => null),
+              Api.bybitKlines('linear', sym, '15m', 100).catch(() => null),
+              Api.bybitKlines('linear', sym, '5m', 100).catch(() => null)
+            ]);
+            if (!h1 || !m15 || !m5) return;
+
+            const res = Scoring.evaluate({ h1, m15, m5 });
+            if (!res) return;
+
+            const view = CoinView.build(res, { symbol: sym, price }, { h4, h1, m15, m5 }, {
+              market: 'PERP',
+              sector: 'Crypto'
+            });
+            if (view) scoredCoins.push(view);
+          } catch (e) {
+            console.warn('[LocalScan] error scoring', tk.symbol, e);
+          }
+        }));
+      }
+
+      scoredCoins.sort((a, b) => b.score - a.score);
+      const prevScores = {};
+      state.coins.forEach(c => { prevScores[`${c.rawSymbol}:${c.market}`] = c.score; });
+
+      const decorated = scoredCoins.map(c => decorateCoin(c, prevScores));
+      clearDiscoveredIfMissing(new Set(decorated.map(c =>
+        `${c.rawSymbol}:${c.market}:${Scoring.bandLabel(c.score, c.unlock, c.ceiling).text}`)));
+
+      state.coins = decorated;
+      state.snapshotAt = Date.now();
+      renderAll();
+
+      el.nextScan.textContent = `v3 Live Engine (${scoredCoins.length} coins @ ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`;
+    } catch (err) {
+      console.error('[LocalScan] failed', err);
+      el.nextScan.textContent = 'Scan failed, checking cloud snapshot fallback...';
+      await loadSnapshot({ force: true });
+    } finally {
+      state.isScanning = false;
+      if (el.scanBtn) {
+        el.scanBtn.disabled = false;
+        el.scanBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span>Live Scan</span>';
+      }
+    }
+  }
+
+  /**
+   * Search on-demand: if user searches for a specific coin (e.g. FLUID or NEAR)
+   * that wasn't in the initial top universe, fetch and score it live!
+   */
+  async function searchCoinLive(query) {
+    if (!query || query.length < 3) return;
+    const clean = query.trim().toUpperCase().replace(/USDT$/, '');
+    const fullSym = clean + 'USDT';
+    if (state.coins.some(c => c.symbol.toUpperCase() === clean || c.rawSymbol === fullSym)) return;
+
+    try {
+      const [h4, h1, m15, m5, tickers] = await Promise.all([
+        Api.bybitKlines('linear', fullSym, '4h', 100).catch(() => null),
+        Api.bybitKlines('linear', fullSym, '1h', 100).catch(() => null),
+        Api.bybitKlines('linear', fullSym, '15m', 100).catch(() => null),
+        Api.bybitKlines('linear', fullSym, '5m', 100).catch(() => null),
+        Api.bybitTickers('linear').catch(() => [])
+      ]);
+      if (!h1 || !m15 || !m5) return;
+
+      const tk = (tickers || []).find(t => t.symbol === fullSym);
+      const price = tk ? parseFloat(tk.lastPrice || 0) : m5[m5.length - 1].c;
+
+      const res = Scoring.evaluate({ h1, m15, m5 });
+      if (!res) return;
+
+      const view = CoinView.build(res, { symbol: fullSym, price }, { h4, h1, m15, m5 }, {
+        market: 'PERP',
+        sector: 'Crypto'
+      });
+      if (!view) return;
+
+      const decorated = decorateCoin(view, {});
+      state.coins.unshift(decorated);
+      renderAll();
+    } catch (e) {
+      console.warn('[searchCoinLive] could not score', query, e);
     }
   }
 
@@ -835,19 +960,17 @@
   // ------------------------------------------------------------ Scheduling
   function scheduleRefresh() {
     if (state.refreshTimer) clearInterval(state.refreshTimer);
-    // Two independent cadences: poll for a newer stored scan every minute,
-    // and tick the countdown every second. The old refreshIntervalSec (a
-    // client scan cadence) no longer has anything to drive — the server's
-    // schedule is what decides when new data exists.
-    state.refreshTimer = setInterval(() => loadSnapshot(), SNAPSHOT_POLL_MS);
-    if (state.countdownTimer) clearInterval(state.countdownTimer);
-    state.countdownTimer = setInterval(updateNextScanLabel, 1000);
+    // Periodically re-scan top liquid perpetuals live every 3 minutes
+    state.refreshTimer = setInterval(() => performLocalScan({ universeSize: 35 }), 3 * 60 * 1000);
     setInterval(() => refreshMarketContext().catch(() => {}), 5 * 60 * 1000);
   }
 
   // --------------------------------------------------------------- Wiring
   function bindStaticEvents() {
     el.themeBtn.addEventListener('click', toggleTheme);
+    if (el.scanBtn) {
+      el.scanBtn.addEventListener('click', () => performLocalScan({ universeSize: 35 }));
+    }
     el.settingsBtn.addEventListener('click', openSettings);
     el.settingsClose.addEventListener('click', closeSettings);
     el.settingsBackdrop.addEventListener('click', (e) => {
@@ -859,6 +982,10 @@
     el.search.addEventListener('input', (e) => {
       state.searchQuery = e.target.value;
       renderAll();
+      if (state.searchQuery.trim().length >= 3) {
+        clearTimeout(state.searchDebounce);
+        state.searchDebounce = setTimeout(() => searchCoinLive(state.searchQuery), 350);
+      }
     });
     el.filterBar.querySelectorAll('.chip').forEach(chip => {
       chip.addEventListener('click', () => {
@@ -1194,7 +1321,7 @@
     initAccessGate(() => {
       bindStaticEvents();
       scheduleRefresh();
-      refreshMarketContext().then(() => loadSnapshot({ force: true }));
+      refreshMarketContext().then(() => performLocalScan({ universeSize: 35 }));
       // Additive to the access gate above, not gated behind it in either
       // direction — Auth has its own independent session, unrelated to
       // the beta access-code check.

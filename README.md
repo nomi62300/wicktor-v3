@@ -25,6 +25,11 @@ Zero build steps. Plain HTML, CSS, and modern JavaScript running natively in the
 - Uses the 15M RSI 50 midline to filter out low-conviction counter-trend trades.
 - Longs must maintain RSI $\ge 50$ and Shorts must hold RSI $\le 50$ to receive the $+10$ momentum bonus; counter-momentum trades are penalized and demoted to AVOID.
 
+### 4. Direct Client-Side Live Scanner
+- Runs directly inside the browser using Bybit's public API klines, completely independent of the legacy v2 cloud database.
+- Evaluates top liquid perpetuals live every 3 minutes, with an on-demand **Live Scan** button in the header.
+- Dynamic coin search: type any asset (e.g. `FLUID`, `AVA`, `NEAR`) into the search bar to score it live on the fly.
+
 ---
 
 ## Architecture & Timeframe Hierarchy
