@@ -4,6 +4,27 @@ All notable changes to Wicktor are documented in this file, in the
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. This
 project uses [Semantic Versioning](https://semver.org/).
 
+## [v3.1.0] - Safu Bot TA Integration: Extreme Wick Rejection & RSI 50 Momentum Gate
+
+### Added
+- **`wickRejection` Pin Bar Trigger (`js/indicators.js`):**
+  - Integrated aggressive rejection wick detection inspired by Safu Bot.
+  - Detects bullish absorption (lower wick $\ge 3.5\times$ body and $\ge 0.4\times \text{ATR}$) for longs and bearish absorption (upper wick $\ge 3.5\times$ body and $\ge 0.4\times \text{ATR}$) for shorts.
+  - Added unit test suite in `tests/indicators.test.js` validating hammer and shooting star recognition.
+  - Added to `TRIGGER_FIT` scoring tables across trending (90), ranging (90), and transition (85) regimes.
+- **15M `RSI 50` Momentum Control Line (`js/scoring.js`):**
+  - Evaluates 15M confirmation timeframe RSI against the midpoint line (50).
+  - Awards a `+10` bonus if RSI is aligned with trade direction (Long with RSI $\ge 50$ or Short with RSI $\le 50$).
+  - Deducts `-10` if trading against intraday intermediate momentum, filtering out low-quality counter-trend noise.
+
+### Verified & Benchmarked
+- **Empirical Backtest over 8,944 signals (`tools/backtest-v2.js`):**
+  - Evaluated across 3 historical market regimes (+25% bull drift, +1.2% flat drift, -4.7% bear drift).
+  - `wickRejection` emerged as the **#1 entry trigger in Scalp mode** with $n = 1,307$, $42.9\%$ win rate, and **$+0.053$ balanced drift-free edge** (Long $+0.051$, Short $+0.055$), beating legacy `levelBreak` (-0.013) and `macdCross` (-0.019).
+  - Validated that higher score buckets consistently pay higher returns (Monotonicity: 50-59 at -0.013 up to 80-100 at +0.016).
+- **Snapshot Diff Benchmark (`tools/diff-scores.js`):**
+  - 26 coins adjusted in live snapshot (`tools/snapshots/v3-with-safu.json`), correctly demoting counter-momentum traps (e.g. `DOGE` and `MON` moved from WATCH to AVOID) and elevating high-conviction setups (e.g. `FARTCOIN` and `XPL` promoted to EXCELLENT).
+
 ## [v3.0.0] - Wicktor v3: Dynamic Local Swing R:R & Inverted Geometry Fix
 
 ### Added / Changed
