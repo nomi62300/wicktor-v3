@@ -1,0 +1,113 @@
+name: Signal journal scan
+
+# Runs the scanner headlessly so the journal records the market rather than
+# the owner's browsing hours. Verified live (2026-08-29): an 11-hour gap
+# with nobody browsing meant zero new signals AND zero resolutions in that
+# window, regardless of what the market did.
+#
+# GitHub's scheduler is best-effort: 5 minutes is the floor, and runs are
+# routinely delayed or skipped when the platform is busy. That is acceptable
+# here — a missed run loses one sampling opportunity, and the unique key on
+# (symbol, market, direction, bar_time) means a late or duplicated run
+# cannot double-count. It is NOT a guarantee of even 5-minute spacing, so
+# nothing downstream should assume a fixed cadence.
+#
+# Note: GitHub disables scheduled workflows in repos with no commit activity
+# for 60 days. If the journal goes quiet, check that before debugging code.
+#
+# UNIVERSE SIZE IS CAPPED BY THE EDGE FUNCTION'S RESOURCE LIMIT, NOT BY
+# TASTE. Measured 2026-09-04: 350 -> 636 coins in 25s and 400 -> 734 coins
+# in 26s both succeed, while 500 returns WORKER_RESOURCE_LIMIT (HTTP 546)
+# with no snapshot AND no journal writes for that cycle. 350 is deliberately
+# below the ~450 cliff: the number of coins passing the tradeable filter
+# drifts upward as Bybit lists pairs, so running near the edge would turn
+# into intermittent total-loss cycles later. Raise only with a fresh
+# measurement, or after moving the scan to a host without a per-invocation
+# resource cap.
+#
+# ---------------------------------------------------------------------------
+# THIS NO LONGER RUNS tools/cron-scan.js DIRECTLY. Bybit 403s every request
+# from GitHub's hosted runners (measured, both api.bybit.com and
+# api.bytick.com — the runner's US cloud IP is blocked, not one bad
+# hostname). The scan logic is correct and runs fine anywhere Bybit
+# answers; it simply cannot run on THIS network.
+#
+# Instead this workflow just makes ONE HTTPS call to a Supabase Edge
+# Function (supabase/functions/cron-scan) that runs the identical scan
+# logic. js/indicators.js, js/scoring.js and js/signals.js needed one
+# addition each (a `globalThis` bridge, since Deno gives every ES module
+# its own scope) but no rewrite — confirmed by direct probe before
+# building the real function.
+#
+# THE x-region HEADER IS NOT OPTIONAL. Supabase Edge Functions route to
+# whichever region is closest to the CALLER by default, not to the
+# project's home region — measured directly: an invocation forced to
+# us-east-1 hit the SAME "no reachable Bybit host" failure GitHub's own
+# runners get (a US-cloud IP block), while ap-northeast-1 (this project's
+# actual region, confirmed to reach Bybit) succeeded every time. GitHub's
+# runners are US-based, so without this header they'd silently route to a
+# blocked region and this fix would appear to work in manual testing (from
+# a different origin) while failing on the real schedule.
+# ---------------------------------------------------------------------------
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      universe_size:
+        description: 'Coins per category to scan'
+        required: false
+        default: '120'
+      dry_run:
+        description: 'Score without writing (1 = dry run)'
+        required: false
+        default: '0'
+
+# A slow run must never stack on top of the next scheduled one — two
+# concurrent scans would just contend for the same rows.
+concurrency:
+  group: signal-journal-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Invoke cron-scan Edge Function
+        env:
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          UNIVERSE_SIZE: ${{ github.event.inputs.universe_size || '350' }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || '0' }}
+        run: |
+          # THREE CALLS, NOT ONE. A combined run at universe_size=350 is
+          # killed with WORKER_RESOURCE_LIMIT -- the worker's CPU budget, not
+          # memory (peak heap measured at 17MB). Each stage fits comfortably on
+          # its own; only their sum does not. scan-spot stashes its half and
+          # scan-linear merges both into the single snapshot row the site
+          # reads, so the ORDER here matters. The sleeps keep each call off the
+          # previous one's warm worker, which was measured to be killed sooner
+          # than a cold one.
+          base="https://fpyfetynfobfrpunnnhv.supabase.co/functions/v1/cron-scan"
+          fail=0
+          for stage in scan-spot scan-linear resolve; do
+            url="${base}?stage=${stage}"
+            case "$stage" in scan-*) url="${url}&universe_size=${UNIVERSE_SIZE}";; esac
+            if [ "$DRY_RUN" = "1" ]; then url="${url}&dry_run=1"; fi
+            http_code=$(curl -s -o "response-${stage}.json" -w "%{http_code}" "$url" \
+              -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+              -H "x-region: ap-northeast-1")
+            echo "--- stage=${stage} -> HTTP ${http_code}"
+            cat "response-${stage}.json"
+            echo ""
+            if [ "$http_code" != "200" ]; then fail=1; fi
+            if [ "$stage" != "resolve" ]; then sleep 20; fi
+          done
+          # Report both stages before failing, so a broken run says which half
+          # broke rather than stopping at the first one.
+          if [ "$fail" != "0" ]; then
+            echo "cron-scan failed"
+            exit 1
+          fi

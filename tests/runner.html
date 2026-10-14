@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wicktor — Test Harness</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Courier New', monospace; font-size: 13px;
+           background: #0e0f11; color: #c8ccd4; padding: 24px; line-height: 1.6; }
+    h1 { font-size: 18px; color: #e2b96f; margin-bottom: 4px; }
+    .subtitle { color: #666; margin-bottom: 24px; font-size: 12px; }
+    .suite { margin-bottom: 20px; }
+    .suite-name { font-size: 14px; font-weight: bold; color: #7ec8b0; margin-bottom: 6px;
+                  border-left: 3px solid #7ec8b0; padding-left: 8px; }
+    .pass { color: #7ec8b0; }
+    .fail { color: #e07452; font-weight: bold; }
+    .item { padding: 2px 0 2px 16px; }
+    .summary { margin-top: 20px; padding: 12px 16px; border-radius: 6px; font-size: 14px; font-weight: bold; }
+    .summary.all-pass { background: rgba(79,174,142,0.12); color: #7ec8b0; border: 1px solid rgba(79,174,142,0.3); }
+    .summary.has-fail { background: rgba(224,116,95,0.12); color: #e07452; border: 1px solid rgba(224,116,95,0.3); }
+    .error-detail { color: #e07452; font-size: 11px; padding-left: 24px; opacity: 0.8; }
+    pre { background: #1a1b1e; padding: 12px; border-radius: 4px; margin: 8px 0;
+          font-size: 11px; overflow-x: auto; color: #c8ccd4; }
+  </style>
+</head>
+<body>
+
+<h1>⚗ Wicktor Test Harness</h1>
+<p class="subtitle">Loads real source files — runs in browser, no Node required.<br>
+Open DevTools console for additional output if a suite crashes.</p>
+
+<div id="output"></div>
+
+<!-- Load the real source files (same order as index.html) -->
+<script src="../js/indicators.js"></script>
+<script src="../js/scoring.js"></script>
+<script src="../js/api.js"></script>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// Minimal test runner
+// ─────────────────────────────────────────────────────────────────────────────
+const results = [];
+let currentSuite = null;
+
+function suite(name) {
+  currentSuite = { name, tests: [] };
+  results.push(currentSuite);
+}
+
+function test(name, fn) {
+  try {
+    fn();
+    currentSuite.tests.push({ name, ok: true });
+  } catch (e) {
+    currentSuite.tests.push({ name, ok: false, err: e.message });
+  }
+}
+
+function assert(cond, msg) {
+  if (!cond) throw new Error(msg || 'Assertion failed');
+}
+function assertEqual(a, b, msg) {
+  if (a !== b) throw new Error((msg || '') + ` expected ${b}, got ${a}`);
+}
+function assertClose(a, b, eps = 1e-9, msg) {
+  if (Math.abs(a - b) > eps) throw new Error((msg || '') + ` expected ~${b}, got ${a}`);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers — synthetic candles
+// ─────────────────────────────────────────────────────────────────────────────
+function flatCandle(t, price) {
+  const s = price * 0.005;
+  return { t, o: price, h: price + s, l: price - s, c: price, v: 1000 };
+}
+
+function uptrend(n = 80, start = 100, step = 0.005) {
+  const cs = [];
+  let p = start;
+  for (let i = 0; i < n; i++) { cs.push(flatCandle(i, p)); p *= (1 + step); }
+  return cs;
+}
+
+function downtrend(n = 80, start = 100, step = 0.005) {
+  const cs = [];
+  let p = start;
+  for (let i = 0; i < n; i++) { cs.push(flatCandle(i, p)); p *= (1 - step); }
+  return cs;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Suite A — heikinAshi() formula
+// ─────────────────────────────────────────────────────────────────────────────
+suite('A — heikinAshi() formula');
+
+const hc = { t: 0, o: 10, h: 12, l: 8, c: 14, v: 100 };
+const ha1 = Indicators.heikinAshi([hc]);
+
+test('haClose = (o+h+l+c)/4', () => assertEqual(ha1[0].c, (10+12+8+14)/4));
+test('haOpen first bar = (o+c)/2', () => assertEqual(ha1[0].o, (10+14)/2));
+test('haHigh = max(h, haOpen, haClose)', () => assertEqual(ha1[0].h, Math.max(12, ha1[0].o, ha1[0].c)));
+test('haLow  = min(l, haOpen, haClose)', () => assertEqual(ha1[0].l, Math.min(8,  ha1[0].o, ha1[0].c)));
+test('preserves timestamp', () => assertEqual(ha1[0].t, 0));
+test('preserves volume',    () => assertEqual(ha1[0].v, 100));
+
+const hc2 = { t: 1, o: 14, h: 16, l: 12, c: 18, v: 200 };
+const ha2 = Indicators.heikinAshi([hc, hc2]);
+test('second bar haOpen = (prevHaOpen + prevHaClose) / 2', () => {
+  const expected = (ha2[0].o + ha2[0].c) / 2;
+  assertClose(ha2[1].o, expected, 1e-10, 'second haOpen');
+});
+test('haHigh >= haClose always (uptrend series)', () => {
+  const cs = uptrend(50);
+  Indicators.heikinAshi(cs).forEach((bar, i) =>
+    assert(bar.h >= bar.c, `bar ${i}: haHigh < haClose`));
+});
+test('haLow <= haClose always (uptrend series)', () => {
+  const cs = uptrend(50);
+  Indicators.heikinAshi(cs).forEach((bar, i) =>
+    assert(bar.l <= bar.c, `bar ${i}: haLow > haClose`));
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Suite B — alligatorTouchState() / clean uptrend stays valid
+// ─────────────────────────────────────────────────────────────────────────────
+suite('B — alligatorTouchState() clean uptrend');
+
+test('clean uptrend: last 20 touchStates are all false', () => {
+  const cs = uptrend(80);
+  const { jaw, teeth, lips, haCandles } = Indicators.alligator(cs);
+  const states = Indicators.alligatorTouchState(haCandles, jaw, teeth, lips);
+  const tail = states.slice(-20);
+  assert(!tail.some(s => s === true), 'Expected no invalidation in tail');
+});
+
+test('clean uptrend: analyzeTimeframe → alignment=1, alligatorInvalidated=false', () => {
+  const snap = Indicators.analyzeTimeframe(uptrend(80));
+  assert(snap !== null, 'snapshot null');
+  assertEqual(snap.alignment, 1, 'alignment');
+  assertEqual(snap.alligatorInvalidated, false, 'invalidated');
+});
+
+test('clean downtrend: analyzeTimeframe → alignment=-1, alligatorInvalidated=false', () => {
+  const snap = Indicators.analyzeTimeframe(downtrend(80));
+  assert(snap !== null, 'snapshot null');
+  assertEqual(snap.alignment, -1, 'alignment');
+  assertEqual(snap.alligatorInvalidated, false, 'invalidated');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Suite C — jaw-touch invalidation and recovery
+// ─────────────────────────────────────────────────────────────────────────────
+suite('C — jaw-touch → alignment=0, recovery → alignment=1');
+
+test('after jaw dip: alignment=0, alligatorInvalidated=true', () => {
+  const cs = uptrend(80);
+  // At bar 70 insert a candle whose low hammers 50% below current price,
+  // and whose close also drops (not just the wick) — bars 71-72 are then
+  // rebuilt from that depressed level too. Otherwise `cs[71]`/`cs[72]`
+  // keep their original pre-dip uptrend values (only bar 70 was
+  // overwritten), the HA close clears back above lips within one bar,
+  // and the sustained-invalidation window this test means to inspect
+  // (through bar 72) never actually happens.
+  const dipPrice = cs[70].c;
+  const droppedPrice = dipPrice * 0.75;
+  cs[70] = { t: 70, o: dipPrice, h: dipPrice * 1.001, l: dipPrice * 0.30, c: droppedPrice, v: 5000 };
+  let p = droppedPrice;
+  for (let i = 71; i < 73; i++) { cs[i] = flatCandle(i, p); p *= 1.005; }
+  const snap = Indicators.analyzeTimeframe(cs.slice(0, 73));
+  assert(snap !== null, 'snapshot null');
+  assertEqual(snap.alignment, 0, 'alignment after dip');
+  assertEqual(snap.alligatorInvalidated, true, 'invalidated after dip');
+});
+
+test('after strong recovery above lips: alignment=1, alligatorInvalidated=false', () => {
+  const cs = uptrend(80);
+  const dipPrice = cs[55].c;
+  cs[55] = { t: 55, o: dipPrice, h: dipPrice * 1.001, l: dipPrice * 0.30, c: dipPrice, v: 5000 };
+  // bars 60-79 rocket upward — ensure strong close above lips
+  let p = dipPrice * 2;
+  for (let i = 60; i < 80; i++) {
+    cs[i] = flatCandle(i, p); p *= 1.02;
+  }
+  const snap = Indicators.analyzeTimeframe(cs);
+  assert(snap !== null, 'snapshot null');
+  assertEqual(snap.alignment, 1, 'alignment after recovery');
+  assertEqual(snap.alligatorInvalidated, false, 'invalidated after recovery');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Suite D — AO / RSI / Fractals still use real candles
+// ─────────────────────────────────────────────────────────────────────────────
+suite('D — AO / RSI / Fractals unchanged (real candles)');
+
+test('snapshot RSI matches rsi(realCandles)[lastIdx]', () => {
+  const cs = uptrend(80);
+  const snap = Indicators.analyzeTimeframe(cs);
+  const rsiSeries = Indicators.rsi(cs);
+  assertClose(snap.rsi, rsiSeries[79], 1e-10, 'RSI mismatch');
+});
+
+test('AO value matches manual SMA(5)−SMA(34) on real medians', () => {
+  const cs = uptrend(80);
+  const ao = Indicators.awesomeOscillator(cs);
+  const med = Indicators.medianPrice(cs);
+  const f = Indicators.sma(med, 5), sl = Indicators.sma(med, 34);
+  assertClose(ao[79], f[79] - sl[79], 1e-10, 'AO mismatch');
+});
+
+test('RSI on HA candles differs from RSI on real candles (proving isolation)', () => {
+  const cs = uptrend(80);
+  // spike at bar 40 makes real vs HA candles diverge clearly
+  cs[40] = { t: 40, o: 100, h: 200, l: 50, c: 102, v: 5000 };
+  const rsiReal = Indicators.rsi(cs);
+  const rsiHA   = Indicators.rsi(Indicators.heikinAshi(cs));
+  const differ = rsiReal.some((v, i) => v != null && rsiHA[i] != null && Math.abs(v - rsiHA[i]) > 0.001);
+  assert(differ, 'RSI should differ between real and HA candles');
+});
+
+test('analyzeTimeframe RSI not affected by spike being HA-smoothed', () => {
+  // Prove analyzeTimeframe uses real candles for RSI by checking its value
+  // matches direct rsi(realCandles) even when a spike is present
+  const cs = uptrend(80);
+  cs[40] = { t: 40, o: 100, h: 200, l: 50, c: 102, v: 5000 };
+  const snap = Indicators.analyzeTimeframe(cs);
+  const rsiSeries = Indicators.rsi(cs);
+  assertClose(snap.rsi, rsiSeries[79], 1e-10, 'analyzeTimeframe RSI should use real candles');
+});
+
+test('fractal detection on real candles finds spike at bar 30', () => {
+  const cs = uptrend(80);
+  cs[30] = { t: 30, o: 200, h: 999, l: 199, c: 200, v: 1000 };
+  const frac = Indicators.fractals(cs);
+  assert(frac.up.includes(30), `Expected fractal up at 30, got [${frac.up}]`);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Suite D2 — 5-tier tfConfidenceTier() / analyzeTimeframe().confidence
+// ─────────────────────────────────────────────────────────────────────────────
+suite('D2 — 5-tier per-TF confidence');
+
+test('clean uptrend: confidence = strong_bull', () => {
+  const snap = Indicators.analyzeTimeframe(uptrend(80));
+  assertEqual(snap.confidence, 'strong_bull');
+});
+
+test('clean downtrend: confidence = strong_bear', () => {
+  const snap = Indicators.analyzeTimeframe(downtrend(80));
+  assertEqual(snap.confidence, 'strong_bear');
+});
+
+test('flat/no alignment: confidence = neutral', () => {
+  const cs = [];
+  let p = 100;
+  for (let i = 0; i < 80; i++) { cs.push(flatCandle(i, p)); } // dead flat, no trend
+  const snap = Indicators.analyzeTimeframe(cs);
+  assertEqual(snap.alignment, 0, 'flat series should have alignment 0');
+  assertEqual(snap.confidence, 'neutral');
+});
+
+test('uptrend with a recent 1-bar dip below lips: confidence = weak_bull (still aligned)', () => {
+  const cs = uptrend(80);
+  const { lips } = Indicators.alligator(cs);
+  const lastIdx = cs.length - 1;
+  // Force the most recent HA close (all of o/h/l/c, not just close) to dip
+  // just under lips without breaking alignment or triggering jaw-touch.
+  const lipsV = lips[lastIdx];
+  assert(lipsV != null, 'lips should be defined by bar 79');
+  const dipPrice = lipsV * 0.995;
+  cs[lastIdx] = { t: lastIdx, o: dipPrice, h: dipPrice, l: dipPrice, c: dipPrice, v: 1000 };
+  const snap = Indicators.analyzeTimeframe(cs);
+  assertEqual(snap.alignment, 1, 'should still be bullish-aligned');
+  assertEqual(snap.confidence, 'weak_bull');
+});
+
+test('evaluate() exposes tfConfidence array of length 3', () => {
+  const cs = uptrend(80);
+  const result = Scoring.evaluate({ h1: cs, m15: cs, m5: cs });
+  assertEqual(result.tfConfidence.length, 3);
+  assertEqual(result.tfConfidence[0], 'strong_bull');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Suite D3 — 1H-anchored bias + confirms/does-not-confirm alignment ceiling
+// (Priority 0: 1H alone sets bias; 15M gates 5M; ceiling only caps DOWN)
+// ─────────────────────────────────────────────────────────────────────────────
+suite('D3 — computeBias() / alignmentCeiling()');
+
+function fakeSnap(alignment) { return alignment == null ? null : { alignment }; }
+
+test('1H sleeping → bias=0, count=0, regardless of 15M/5M agreeing', () => {
+  const tf = [fakeSnap(0), fakeSnap(1), fakeSnap(1)];
+  const { bias, count } = Scoring.computeBias(tf);
+  assertEqual(bias, 0); assertEqual(count, 0);
+});
+
+test('15M+5M agree with each other but oppose 1H → bias follows 1H, not the pair', () => {
+  const tf = [fakeSnap(1), fakeSnap(-1), fakeSnap(-1)];
+  const { bias, count } = Scoring.computeBias(tf);
+  assertEqual(bias, 1, '1H must win regardless of 15M/5M majority');
+  assertEqual(count, 1, 'only 1H itself counts as confirming');
+});
+
+test('full 3TF confirm → count=3', () => {
+  const tf = [fakeSnap(1), fakeSnap(1), fakeSnap(1)];
+  assertEqual(Scoring.computeBias(tf).count, 3);
+});
+
+test('ceiling: 1H sleeping → avoid', () => {
+  const tf = [fakeSnap(0), fakeSnap(1), fakeSnap(1)];
+  assertEqual(Scoring.alignmentCeiling(tf, 0), 'avoid');
+});
+
+test('ceiling: 15M+5M both confirm → excellent', () => {
+  const tf = [fakeSnap(1), fakeSnap(1), fakeSnap(1)];
+  assertEqual(Scoring.alignmentCeiling(tf, 1), 'excellent');
+});
+
+test('ceiling: 15M confirms, 5M opposes → watch', () => {
+  const tf = [fakeSnap(1), fakeSnap(1), fakeSnap(-1)];
+  assertEqual(Scoring.alignmentCeiling(tf, 1), 'watch');
+});
+
+test('ceiling: 15M confirms, 5M sleeping → watch (sleeping treated as non-confirm, not a veto to avoid)', () => {
+  const tf = [fakeSnap(1), fakeSnap(1), fakeSnap(0)];
+  assertEqual(Scoring.alignmentCeiling(tf, 1), 'watch');
+});
+
+test('ceiling: 15M opposes 1H → avoid, even if 5M confirms (15M gates 5M)', () => {
+  const tf = [fakeSnap(1), fakeSnap(-1), fakeSnap(1)];
+  assertEqual(Scoring.alignmentCeiling(tf, 1), 'avoid');
+});
+
+test('ceiling: 15M sleeping (does not confirm) → avoid, even if 5M confirms', () => {
+  const tf = [fakeSnap(1), fakeSnap(0), fakeSnap(1)];
+  assertEqual(Scoring.alignmentCeiling(tf, 1), 'avoid');
+});
+
+test('ceiling: mirror bearish case, full confirm → excellent', () => {
+  const tf = [fakeSnap(-1), fakeSnap(-1), fakeSnap(-1)];
+  assertEqual(Scoring.alignmentCeiling(tf, -1), 'excellent');
+});
+
+test('evaluate(): C4 removed the alignment veto — the chain is reported, not enforced', () => {
+  const cs = uptrend(80);
+  const flat = [];
+  for (let i = 0; i < 80; i++) flat.push(flatCandle(i, 100));
+  const result = Scoring.evaluate({ h1: cs, m15: flat, m5: cs });
+  // The classic 1H->15M->5M chain still says "avoid" and is still surfaced...
+  assertEqual(result.alignmentChain, 'avoid');
+  // ...but it no longer caps the band. Capping here is precisely what made
+  // 38% of the universe unscoreable regardless of the setup on offer.
+  assertEqual(result.ceiling, null);
+  // Higher-timeframe disagreement is now a scored component instead, so it
+  // costs points rather than vetoing.
+  assert(result.score >= 0 && result.score <= 100);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Suite E — Scoring.bandLabel() contract
+// ─────────────────────────────────────────────────────────────────────────────
+suite('E — Scoring.bandLabel()');
+
+test('score >= 80 → EXCELLENT', () => assertEqual(Scoring.bandLabel(80).text, 'EXCELLENT'));
+test('score 79 → WATCH',        () => assertEqual(Scoring.bandLabel(79).text, 'WATCH'));
+test('score 60 → WATCH',        () => assertEqual(Scoring.bandLabel(60).text, 'WATCH'));
+// Raised from 50 on measurement: 50-59 returned -0.055 NET of taker fees
+// across 2,639 signals, while every bucket from 60 up is net positive.
+test('score 59 → AVOID',        () => assertEqual(Scoring.bandLabel(59).text, 'AVOID'));
+test('score 100 → EXCELLENT',   () => assertEqual(Scoring.bandLabel(100).text, 'EXCELLENT'));
+test('unlock.severity=red overrides score', () => {
+  const lbl = Scoring.bandLabel(90, { severity: 'red' });
+  assert(lbl.text.includes('UNLOCK'), `expected UNLOCK label, got "${lbl.text}"`);
+});
+test('ceiling=watch caps score=90 down to WATCH', () => {
+  assertEqual(Scoring.bandLabel(90, null, 'watch').text, 'WATCH');
+});
+test('ceiling=avoid caps score=95 down to AVOID', () => {
+  assertEqual(Scoring.bandLabel(95, null, 'avoid').text, 'AVOID');
+});
+test('ceiling=excellent does not force a low score up (score=40 stays AVOID)', () => {
+  assertEqual(Scoring.bandLabel(40, null, 'excellent').text, 'AVOID');
+});
+test('unlock red overrides ceiling=excellent too', () => {
+  const lbl = Scoring.bandLabel(95, { severity: 'red' }, 'excellent');
+  assert(lbl.text.includes('UNLOCK'), `expected UNLOCK label, got "${lbl.text}"`);
+});
+test('omitting ceiling is back-compat (unrestricted, score-only)', () => {
+  assertEqual(Scoring.bandLabel(85, null).text, 'EXCELLENT');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Suite F — applyCardCaps() logic (pure function, tested inline)
+// ─────────────────────────────────────────────────────────────────────────────
+suite('F — applyCardCaps() bucketing and caps');
+
+// Inline copy of the function so we can test it without the full app bootstrap
+function applyCardCaps(coins, spotCap, perpCap) {
+  const spotBuy = [], spotSell = [], perpBuy = [], perpSell = [];
+  coins.forEach(c => {
+    const isBuy = c.side === 'Buy' || c.side === 'Long';
+    if (c.market === 'SPOT') { (isBuy ? spotBuy : spotSell).push(c); }
+    else                     { (isBuy ? perpBuy : perpSell).push(c); }
+  });
+  const byScore = (a, b) => b.score - a.score;
+  return [
+    ...spotBuy.sort(byScore).slice(0, spotCap),
+    ...spotSell.sort(byScore).slice(0, spotCap),
+    ...perpBuy.sort(byScore).slice(0, perpCap),
+    ...perpSell.sort(byScore).slice(0, perpCap)
+  ];
+}
+
+function makeCoin(id, market, side, score) {
+  return { id, market, side, score };
+}
+
+// Build a pool: 10 spot-buy (scores 1-10), 10 spot-sell, 10 perp-buy, 10 perp-sell
+const pool = [];
+for (let i = 1; i <= 10; i++) {
+  pool.push(makeCoin(`sb${i}`, 'SPOT', 'Buy',   i * 10));
+  pool.push(makeCoin(`ss${i}`, 'SPOT', 'Sell',  i * 10));
+  pool.push(makeCoin(`pb${i}`, 'PERP', 'Long',  i * 10));
+  pool.push(makeCoin(`ps${i}`, 'PERP', 'Short', i * 10));
+}
+
+test('cap=5: total output = 20 (5 × 4 buckets)', () => {
+  const out = applyCardCaps(pool, 5, 5);
+  assertEqual(out.length, 20, 'total cards');
+});
+
+test('cap=3 spot, 2 perp: total = 10', () => {
+  const out = applyCardCaps(pool, 3, 2);
+  assertEqual(out.length, 10, 'total cards');
+});
+
+test('each bucket sorted by score descending', () => {
+  const out = applyCardCaps(pool, 5, 5);
+  // spot-buy bucket is first 5 entries; scores should be 100,90,80,70,60
+  const spotBuyScores = out.slice(0, 5).map(c => c.score);
+  for (let i = 0; i < spotBuyScores.length - 1; i++) {
+    assert(spotBuyScores[i] >= spotBuyScores[i+1],
+      `spot-buy not sorted at pos ${i}: ${spotBuyScores}`);
+  }
+});
+
+test('bucket with fewer coins than cap renders all it has (no padding)', () => {
+  // Only 2 spot-buy coins
+  const small = [
+    makeCoin('a', 'SPOT', 'Buy', 80),
+    makeCoin('b', 'SPOT', 'Buy', 60),
+    makeCoin('c', 'SPOT', 'Sell', 70),
+    makeCoin('d', 'SPOT', 'Sell', 50),
+    makeCoin('e', 'SPOT', 'Sell', 30),
+  ];
+  const out = applyCardCaps(small, 5, 5);
+  const spotBuyCount = out.filter(c => c.market === 'SPOT' && (c.side === 'Buy' || c.side === 'Long')).length;
+  assertEqual(spotBuyCount, 2, 'spot-buy count (no padding)');
+});
+
+test('Long → perp-buy bucket, Short → perp-sell bucket', () => {
+  const coins = [
+    makeCoin('l1', 'PERP', 'Long', 90),
+    makeCoin('l2', 'PERP', 'Long', 80),
+    makeCoin('s1', 'PERP', 'Short', 70),
+  ];
+  const out = applyCardCaps(coins, 5, 5);
+  const perpBuyCount  = out.filter(c => c.id.startsWith('l')).length;
+  const perpSellCount = out.filter(c => c.id.startsWith('s')).length;
+  assertEqual(perpBuyCount, 2, 'perp-buy (Long)');
+  assertEqual(perpSellCount, 1, 'perp-sell (Short)');
+});
+
+test('cap=1: only highest-score coin per bucket survives', () => {
+  const out = applyCardCaps(pool, 1, 1);
+  assertEqual(out.length, 4, 'total cards with cap=1');
+  out.forEach(c => assertEqual(c.score, 100, `expected score 100, got ${c.score}`));
+});
+
+test('empty input → empty output', () => {
+  const out = applyCardCaps([], 5, 5);
+  assertEqual(out.length, 0, 'empty output');
+});
+
+test('output order: spotBuy → spotSell → perpBuy → perpSell', () => {
+  const coins = [
+    makeCoin('ss', 'SPOT', 'Sell', 90),
+    makeCoin('pb', 'PERP', 'Long', 95),
+    makeCoin('sb', 'SPOT', 'Buy', 85),
+    makeCoin('ps', 'PERP', 'Short', 80),
+  ];
+  const out = applyCardCaps(coins, 5, 5);
+  assertEqual(out[0].id, 'sb', 'first = spotBuy');
+  assertEqual(out[1].id, 'ss', 'second = spotSell');
+  assertEqual(out[2].id, 'pb', 'third = perpBuy');
+  assertEqual(out[3].id, 'ps', 'fourth = perpSell');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Suite G — max-age filter logic (pure, in-process)
+// ─────────────────────────────────────────────────────────────────────────────
+suite('G — max-age stale-coin exclusion');
+
+function applyMaxAge(coins, discovered, maxAgeMs) {
+  const now = Date.now();
+  return coins.filter(r => {
+    const key = `${r.rawSymbol}:${r.market}`;
+    const ts = discovered[key];
+    if (ts && (now - ts) > maxAgeMs) return false;
+    return true;
+  });
+}
+
+test('coin with no discovery entry passes through (brand new)', () => {
+  const coins = [{ rawSymbol: 'BTC', market: 'SPOT' }];
+  const out = applyMaxAge(coins, {}, 5 * 60 * 1000);
+  assertEqual(out.length, 1, 'new coin should pass');
+});
+
+test('coin discovered 1 min ago passes a 20-min cutoff', () => {
+  const coins = [{ rawSymbol: 'ETH', market: 'SPOT' }];
+  const discovered = { 'ETH:SPOT': Date.now() - 60_000 }; // 1 minute ago
+  const out = applyMaxAge(coins, discovered, 20 * 60 * 1000);
+  assertEqual(out.length, 1, 'fresh coin should pass');
+});
+
+test('coin discovered 25 min ago is excluded by a 20-min cutoff', () => {
+  const coins = [{ rawSymbol: 'XRP', market: 'SPOT' }];
+  const discovered = { 'XRP:SPOT': Date.now() - 25 * 60_000 }; // 25 min ago
+  const out = applyMaxAge(coins, discovered, 20 * 60 * 1000);
+  assertEqual(out.length, 0, 'stale coin should be excluded');
+});
+
+test('stale coin is excluded but discovery entry NOT deleted', () => {
+  const coins = [{ rawSymbol: 'SOL', market: 'SPOT' }];
+  const discovered = { 'SOL:SPOT': Date.now() - 30 * 60_000 };
+  applyMaxAge(coins, discovered, 20 * 60 * 1000); // run the filter
+  assert('SOL:SPOT' in discovered, 'discovery entry must survive filter');
+});
+
+test('mix: only fresh coin included when one is stale', () => {
+  const coins = [
+    { rawSymbol: 'FRESH', market: 'SPOT' },
+    { rawSymbol: 'STALE', market: 'SPOT' },
+  ];
+  const discovered = {
+    'FRESH:SPOT': Date.now() - 5 * 60_000,  // 5 min — ok
+    'STALE:SPOT': Date.now() - 30 * 60_000, // 30 min — too old
+  };
+  const out = applyMaxAge(coins, discovered, 20 * 60 * 1000);
+  assertEqual(out.length, 1, 'only fresh survives');
+  assertEqual(out[0].rawSymbol, 'FRESH');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Suite H — Scoring.evaluate() smoke test (end-to-end through real candles)
+// ─────────────────────────────────────────────────────────────────────────────
+suite('H — Scoring.evaluate() smoke test');
+
+test('returns non-null result for valid candle sets', () => {
+  const cs = uptrend(80);
+  const result = Scoring.evaluate({ h1: cs, m15: cs, m5: cs });
+  assert(result !== null, 'evaluate should return non-null');
+});
+
+test('score is in [0,100]', () => {
+  const cs = uptrend(80);
+  const result = Scoring.evaluate({ h1: cs, m15: cs, m5: cs });
+  assert(result.score >= 0 && result.score <= 100, `score out of range: ${result.score}`);
+});
+
+test('direction is in [-100,100]', () => {
+  const cs = uptrend(80);
+  const result = Scoring.evaluate({ h1: cs, m15: cs, m5: cs });
+  assert(result.direction >= -100 && result.direction <= 100,
+    `direction out of range: ${result.direction}`);
+});
+
+test('uptrend → positive direction', () => {
+  const cs = uptrend(80);
+  const result = Scoring.evaluate({ h1: cs, m15: cs, m5: cs });
+  assert(result.direction > 0, `expected positive direction, got ${result.direction}`);
+});
+
+test('downtrend → negative direction', () => {
+  const cs = downtrend(80);
+  const result = Scoring.evaluate({ h1: cs, m15: cs, m5: cs });
+  assert(result.direction < 0, `expected negative direction, got ${result.direction}`);
+});
+
+test('returns null when h1 candles are too short', () => {
+  const short = uptrend(10);
+  const result = Scoring.evaluate({ h1: short, m15: uptrend(80), m5: uptrend(80) });
+  assert(result === null, 'expected null for short h1');
+});
+
+suite('I — breakoutProximityPct() and 15M breakout-proximity scoring');
+
+test('at the level itself = 100%', () => {
+  assert(Indicators.breakoutProximityPct(0, 10) === 100);
+});
+
+test('1 ATR away = ~66.7%', () => {
+  const pct = Indicators.breakoutProximityPct(10, 10);
+  assert(Math.abs(pct - (100 * 2 / 3)) < 1e-9, `Expected ~66.67, got ${pct}`);
+});
+
+test('3+ ATRs away floors at 0%, never negative', () => {
+  assert(Indicators.breakoutProximityPct(30, 10) === 0);
+  assert(Indicators.breakoutProximityPct(100, 10) === 0);
+});
+
+test('null/zero ATR returns null, not a divide-by-zero result', () => {
+  assert(Indicators.breakoutProximityPct(10, 0) === null);
+  assert(Indicators.breakoutProximityPct(10, null) === null);
+});
+
+test('buildContinuation: 15M closing above resistance scores the confirmed-breakout item', () => {
+  const cs = uptrend(80);
+  const snap = Indicators.analyzeTimeframe(cs);
+  const tfSnapshots = [snap, { ...snap, resistance: cs[cs.length - 1].c - 0.01 }, snap];
+  const { items } = Scoring.buildContinuation(tfSnapshots, 1);
+  assert(items.some(([label]) => label.includes('Confirmed breakout above key level')),
+    `Expected confirmed-breakout item, got ${JSON.stringify(items)}`);
+});
+
+test('buildContinuation: 15M far from any level scores neither breakout item', () => {
+  const cs = uptrend(80);
+  const snap = Indicators.analyzeTimeframe(cs);
+  const farResistance = cs[cs.length - 1].c + snap.atr * 10;
+  const tfSnapshots = [snap, { ...snap, resistance: farResistance }, snap];
+  const { items } = Scoring.buildContinuation(tfSnapshots, 1);
+  assert(!items.some(([label, pct]) => label.includes('key level') && pct > 0),
+    `Expected a zero-value (but still present, applicable) breakout-proximity item, got ${JSON.stringify(items)}`);
+});
+
+suite('J — OI 15m% scoring input');
+
+test('buildContinuation: |OI change| >= 5% scores the OI confirmation item', () => {
+  const cs = uptrend(80);
+  const snap = Indicators.analyzeTimeframe(cs);
+  const tfSnapshots = [snap, snap, snap];
+  const { items } = Scoring.buildContinuation(tfSnapshots, 1, 7.2);
+  assert(items.some(([label]) => label.includes('Perp OI') && label.includes('+7.2%')),
+    `Expected OI confirmation item, got ${JSON.stringify(items)}`);
+});
+
+test('buildContinuation: OI magnitude is continuous now (Audit F3) — a small swing still scores proportionally, not gated by a flat 5% threshold', () => {
+  const cs = uptrend(80);
+  const snap = Indicators.analyzeTimeframe(cs);
+  const tfSnapshots = [snap, snap, snap];
+  const { items } = Scoring.buildContinuation(tfSnapshots, 1, 2.0);
+  const item = items.find(([label]) => label.includes('Perp OI'));
+  assert(item, `Expected a (smaller) OI item even below the old 5% threshold, got ${JSON.stringify(items)}`);
+  assert(item[1] < 20, `Expected a small magnitude-scaled percentage, got ${item[1]}`);
+});
+
+test('buildContinuation: near-zero OI change scores essentially nothing', () => {
+  const cs = uptrend(80);
+  const snap = Indicators.analyzeTimeframe(cs);
+  const tfSnapshots = [snap, snap, snap];
+  const { items } = Scoring.buildContinuation(tfSnapshots, 1, 0.05);
+  assert(!items.some(([label, pct]) => label.includes('Perp OI') && pct > 0),
+    `Expected a zero-value (but still present, applicable) OI item for a near-zero swing, got ${JSON.stringify(items)}`);
+});
+
+test('buildContinuation: null OI (spot market) scores nothing, no crash', () => {
+  const cs = uptrend(80);
+  const snap = Indicators.analyzeTimeframe(cs);
+  const tfSnapshots = [snap, snap, snap];
+  const { items } = Scoring.buildContinuation(tfSnapshots, 1, null);
+  assert(!items.some(([label]) => label.includes('Perp OI')),
+    `Expected no OI item for null (spot), got ${JSON.stringify(items)}`);
+});
+
+test('buildContinuation: negative OI swing beyond threshold also confirms (magnitude, not sign)', () => {
+  const cs = uptrend(80);
+  const snap = Indicators.analyzeTimeframe(cs);
+  const tfSnapshots = [snap, snap, snap];
+  const { items } = Scoring.buildContinuation(tfSnapshots, 1, -8.5);
+  assert(items.some(([label]) => label.includes('Perp OI') && label.includes('-8.5%')),
+    `Expected OI confirmation item for negative swing, got ${JSON.stringify(items)}`);
+});
+
+test('evaluate() threads extras.oiChange15m through to continuation.items', () => {
+  const cs = uptrend(80);
+  const withOi = Scoring.evaluate({ h1: cs, m15: cs, m5: cs }, { oiChange15m: 9.0 });
+  assert(withOi.continuation.items.some(([label]) => label.includes('Perp OI')),
+    `Expected OI item in evaluate() output, got ${JSON.stringify(withOi.continuation.items)}`);
+  const withoutOi = Scoring.evaluate({ h1: cs, m15: cs, m5: cs });
+  assert(!withoutOi.continuation.items.some(([label]) => label.includes('Perp OI')),
+    `Expected no OI item when extras omitted, got ${JSON.stringify(withoutOi.continuation.items)}`);
+});
+
+suite('K — linearRegression() and regressionChannelLevels() (sloped key levels v2)');
+
+test('perfect line gives exact slope/intercept and r2=1', () => {
+  const fit = Indicators.linearRegression([{ x: 0, y: 10 }, { x: 1, y: 12 }, { x: 2, y: 14 }, { x: 3, y: 16 }]);
+  assert(Math.abs(fit.slope - 2) < 1e-9);
+  assert(Math.abs(fit.intercept - 10) < 1e-9);
+  assert(Math.abs(fit.r2 - 1) < 1e-9);
+});
+
+test('scattered points give r2 < 1', () => {
+  const fit = Indicators.linearRegression([{ x: 0, y: 10 }, { x: 1, y: 9 }, { x: 2, y: 15 }, { x: 3, y: 8 }]);
+  assert(fit.r2 < 1);
+});
+
+test('fewer than 2 points, or all identical x, returns null', () => {
+  assert(Indicators.linearRegression([]) === null);
+  assert(Indicators.linearRegression([{ x: 0, y: 1 }]) === null);
+  assert(Indicators.linearRegression([{ x: 5, y: 1 }, { x: 5, y: 2 }, { x: 5, y: 3 }]) === null);
+});
+
+test('fewer than minPivots fractal highs returns null resistance', () => {
+  const candles = uptrend(80);
+  const result = Indicators.regressionChannelLevels(candles, { up: [10], down: [] }, 79);
+  assert(result.resistance === null && result.support === null);
+});
+
+test('enough clean rising pivots yields a confident projected value', () => {
+  const candles = uptrend(80);
+  candles.forEach((c, i) => { c.h = 100 + i * 2; });
+  const result = Indicators.regressionChannelLevels(candles, { up: [10, 20, 30, 40], down: [] }, 79, { minPivots: 3 });
+  assert(result.resistance !== null);
+  assert(result.resistance.r2 > 0.99, `Expected near-perfect r2, got ${result.resistance.r2}`);
+  const expected = 100 + 79 * 2;
+  assert(Math.abs(result.resistance.value - expected) < 1e-6);
+});
+
+test('noisy pivots below r2 threshold returns null', () => {
+  const candles = uptrend(80);
+  const noisyHighs = [50, 900, 60, 850];
+  [10, 20, 30, 40].forEach((idx, i) => { candles[idx].h = noisyHighs[i]; });
+  const result = Indicators.regressionChannelLevels(candles, { up: [10, 20, 30, 40], down: [] }, 79, { minPivots: 3, minR2: 0.6 });
+  assert(result.resistance === null, `Expected null for a poor fit, got ${JSON.stringify(result.resistance)}`);
+});
+
+test('analyzeTimeframe exposes resistanceSloped/supportSloped without throwing', () => {
+  const candles = uptrend(80);
+  const snap = Indicators.analyzeTimeframe(candles);
+  assert('resistanceSloped' in snap && 'supportSloped' in snap);
+});
+
+suite('L — Strategy-enrichment Stage 0: new indicator math (pure, not wired yet)');
+
+test('ema(): seeds with SMA, then recurses with the standard smoothing factor', () => {
+  const e = Indicators.ema([1, 2, 3, 4, 5, 6, 7, 8], 3);
+  assert(Math.abs(e[2] - 2) < 1e-9);
+  const k = 2 / 4;
+  assert(Math.abs(e[3] - (4 * k + e[2] * (1 - k))) < 1e-9);
+});
+
+test('macd(): uptrend positive, downtrend negative, histogram = macdLine - signalLine', () => {
+  const up = Indicators.macd(uptrend(80));
+  assert(up.macdLine[79] > 0);
+  const down = Indicators.macd(downtrend(80));
+  assert(down.macdLine[79] < 0);
+  for (let i = 0; i < 80; i++) {
+    if (up.macdLine[i] != null && up.signalLine[i] != null) {
+      assert(Math.abs(up.histogram[i] - (up.macdLine[i] - up.signalLine[i])) < 1e-9);
+    }
+  }
+});
+
+test('bollingerBands(): constant price gives zero band width; %B stays sane in a smooth uptrend', () => {
+  const flat = [];
+  for (let i = 0; i < 30; i++) flat.push({ t: i, o: 100, h: 100, l: 100, c: 100, v: 1000 });
+  const bbFlat = Indicators.bollingerBands(flat, 20);
+  assert(Math.abs(bbFlat.upper[29] - bbFlat.lower[29]) < 1e-9);
+  const bb = Indicators.bollingerBands(uptrend(80), 20);
+  assert(bb.percentB[79] >= 0 && bb.percentB[79] <= 1.2);
+});
+
+test('adx(): +DI > -DI in an uptrend, -DI > +DI in a downtrend, ADX in [0,100]', () => {
+  const up = Indicators.adx(uptrend(80));
+  assert(up.plusDI[79] > up.minusDI[79]);
+  const down = Indicators.adx(downtrend(80));
+  assert(down.minusDI[79] > down.plusDI[79]);
+  assert(up.adx[79] >= 0 && up.adx[79] <= 100);
+});
+
+test('stochastic(): %K near 100 on a fresh high, near 0 on a fresh low', () => {
+  const up = Indicators.stochastic(uptrend(40));
+  assert(up.k[39] > 80);
+  const down = Indicators.stochastic(downtrend(40));
+  assert(down.k[39] < 20);
+});
+
+test('ichimoku(): tenkan matches its own window midpoint; currentSpanA/B are the -26-shifted read', () => {
+  const candles = uptrend(80);
+  const ich = Indicators.ichimoku(candles);
+  const lastIdx = candles.length - 1;
+  let hh = -Infinity, ll = Infinity;
+  for (let j = lastIdx - 8; j <= lastIdx; j++) { hh = Math.max(hh, candles[j].h); ll = Math.min(ll, candles[j].l); }
+  assert(Math.abs(ich.tenkan[lastIdx] - (hh + ll) / 2) < 1e-9);
+  assert(Math.abs(ich.currentSpanA - ich.spanA[lastIdx - 26]) < 1e-9);
+  assert(ich.currentSpanA < ich.spanA[lastIdx]);
+});
+
+test('liquiditySweep(): detects a bearish rejection wick above resistance; null ATR is safe', () => {
+  const candles = uptrend(60);
+  const frac = Indicators.fractals(candles);
+  const atrSeries = Indicators.atr(candles);
+  const i = candles.length - 1;
+  const lastUpFrac = Indicators.lastFractal(frac.up, i - 1);
+  if (lastUpFrac != null) {
+    const level = candles[lastUpFrac].h;
+    const atrV = atrSeries[i] || 1;
+    candles[i] = { t: i, o: level - 1, h: level + atrV * 2, l: level - 2, c: level - 1, v: 1000 };
+    const result = Indicators.liquiditySweep(candles, frac, i, atrV);
+    assert(result.down === true);
+  }
+  const safe = Indicators.liquiditySweep(candles, frac, i, null);
+  assert(safe.up === false && safe.down === false);
+});
+
+suite('M — Strategy-enrichment Stage 1: snapshot wiring, verified inert');
+
+test('analyzeTimeframe: new Stage 1 fields match calling the Stage 0 functions directly', () => {
+  const candles = uptrend(80);
+  const lastIdx = candles.length - 1;
+  const snap = Indicators.analyzeTimeframe(candles);
+  const closes = candles.map(c => c.c);
+  assert(snap.ema9 === Indicators.ema(closes, 9)[lastIdx]);
+  const a = Indicators.adx(candles);
+  assert(snap.adx === a.adx[lastIdx]);
+});
+
+test('Stage 1 snapshot fields are readable via Scoring.evaluate() without throwing', () => {
+  const cs = uptrend(80);
+  const result = Scoring.evaluate({ h1: cs, m15: cs, m5: cs });
+  assert(result.score >= 0 && result.score <= 100);
+});
+
+suite('N — Phase 5 Stage 2: scalping-tier strategies 1-5');
+
+function baseSnap(overrides) { return { ...Indicators.analyzeTimeframe(uptrend(80)), ...overrides }; }
+
+test('Strategy 1: EMA stack + MACD-cross-on-pullback score; far-from-EMA21 does not', () => {
+  const primary = baseSnap({ emaStackBullish: true });
+  assert(Scoring.buildContinuation([primary, null, null], 1).items.some(([l]) => l === '1H EMA 9/21 bullish trend'));
+  const m15ok = baseSnap({ macdBullishCross: true, ema21: 100, close: 100.2, atr: 1 });
+  assert(Scoring.buildContinuation([baseSnap({}), m15ok, null], 1).items.some(([l]) => l.includes('MACD bullish cross on EMA21 pullback')));
+  const m15far = baseSnap({ macdBullishCross: true, ema21: 100, close: 110, atr: 1 });
+  assert(!Scoring.buildContinuation([baseSnap({}), m15far, null], 1).items.some(([l, p]) => l.includes('MACD bullish cross') && p > 0));
+});
+
+test('Strategy 2: expansion+breakout scores; ADX contributes its own standalone item (Audit F3); no breakout scores nothing', () => {
+  const m15 = baseSnap({ bbExpanding: true, bbUpper: 100, close: 101, adx: 30 });
+  const items = Scoring.buildContinuation([baseSnap({}), m15, null], 1).items;
+  assert(items.some(([l]) => l === '15M BB squeeze breakout'));
+  assert(items.some(([l]) => l.startsWith('15M ADX trend strength')));
+  const noBreak = baseSnap({ bbExpanding: true, bbUpper: 100, close: 99, adx: 30 });
+  assert(!Scoring.buildContinuation([baseSnap({}), noBreak, null], 1).items.some(([l, p]) => l.includes('BB squeeze breakout') && p > 0));
+});
+
+test('Strategy 3: near-retest scores Continuation + Reversal trap item when RSI>=70; far does not', () => {
+  const near = baseSnap({ aboveUpFractal: true, lastUpFractal: 100, close: 100.3, atr: 1, rsi: 72, divergence: 'none', mfiSignal: null, divergentBarDown: false, wisemanBearish: false });
+  assert(Scoring.buildContinuation([near, null, null], 1).items.some(([l]) => l === '1H Breakout retest held'));
+  assert(Scoring.buildReversal([near, null, null], 1).items.some(([l]) => l === '1H Retest into overbought (trap risk)'));
+  const far = baseSnap({ aboveUpFractal: true, lastUpFractal: 100, close: 110, atr: 1 });
+  assert(!Scoring.buildContinuation([far, null, null], 1).items.some(([l, p]) => l.includes('Breakout retest') && p > 0));
+});
+
+test('Strategy 4: expanding + bias-matching rising histogram scores; opposite-bias histogram does not', () => {
+  const m15 = baseSnap({ bbExpanding: true, macdHistogram: 2, macdHistogramRising: true });
+  assert(Scoring.buildContinuation([baseSnap({}), m15, null], 1).items.some(([l]) => l === '15M Squeeze momentum expansion (MACD confirm)'));
+  const opp = baseSnap({ bbExpanding: true, macdHistogram: -2, macdHistogramRising: true });
+  assert(!Scoring.buildContinuation([baseSnap({}), opp, null], 1).items.some(([l, p]) => l.includes('Squeeze momentum') && p > 0));
+});
+
+test('Strategy 5: BB extreme + stochastic exhaustion cross both score independently; mid-band scores neither', () => {
+  const m5 = baseSnap({ bbPercentB: 1.05, stochBearishCrossFromOverbought: true });
+  const items = Scoring.buildExhaustion([baseSnap({}), baseSnap({}), m5]).items;
+  assert(items.some(([l]) => l === '5M Price at BB extreme'));
+  assert(items.some(([l]) => l === '5M Stochastic exhaustion crossover'));
+  const mid = baseSnap({ bbPercentB: 0.5, stochBearishCrossFromOverbought: false, stochBullishCrossFromOversold: false });
+  assert(!Scoring.buildExhaustion([baseSnap({}), baseSnap({}), mid]).items.some(([l]) => l.includes('BB extreme') || l.includes('Stochastic exhaustion')));
+});
+
+suite('O — Phase 5 Stage 3: swing-tier strategies 6, 7, 8, 9, 11');
+
+test('Strategy 6/7: Ichimoku cloud + stoch entry score; plain MACD cross scores but EMA stack is not re-scored', () => {
+  const primary = baseSnap({ ichimokuAboveCloud: true, macdBullishCross: true, emaStackBullish: true });
+  const items = Scoring.buildContinuation([primary, null, null], 1).items;
+  assert(items.some(([l]) => l === '1H Price above Ichimoku cloud'));
+  assert(items.some(([l]) => l === '1H MACD trend-following cross'));
+  assert(!items.some(([l]) => l.includes('EMA stack')));
+  const m15 = baseSnap({ stochBullishCrossFromOversold: true });
+  assert(Scoring.buildContinuation([baseSnap({}), m15, null], 1).items.some(([l]) => l === '15M Stochastic bullish entry (oversold cross)'));
+});
+
+test('Strategy 8/9: MACD reversal-at-level and MACD/Stochastic divergence score independently; far-from-level does not', () => {
+  const near = baseSnap({ macdBearishCross: true, resistance: 100, close: 100.5, atr: 1, divergence: 'none', mfiSignal: null, divergentBarDown: false, wisemanBearish: false, macdDivergence: 'none' });
+  assert(Scoring.buildReversal([near, null, null], 1).items.some(([l]) => l === '1H MACD reversal cross at key level'));
+  const far = baseSnap({ macdBearishCross: true, resistance: 100, close: 150, atr: 1, divergence: 'none', mfiSignal: null, divergentBarDown: false, wisemanBearish: false, macdDivergence: 'none' });
+  assert(!Scoring.buildReversal([far, null, null], 1).items.some(([l]) => l.includes('MACD reversal cross')));
+  const macdDiv = baseSnap({ macdDivergence: 'bear', divergence: 'none', mfiSignal: null, divergentBarDown: false, wisemanBearish: false, macdBearishCross: false });
+  assert(Scoring.buildReversal([macdDiv, null, null], 1).items.some(([l]) => l === '1H Bearish MACD divergence'));
+  const stochDiv = baseSnap({ stochDivergence: 'bear' });
+  assert(Scoring.buildReversal([baseSnap({ divergence: 'none', mfiSignal: null, divergentBarDown: false, wisemanBearish: false, macdBearishCross: false, macdDivergence: 'none' }), stochDiv, null], 1).items.some(([l]) => l === '15M Stochastic divergence'));
+});
+
+test('Strategy 11: Range Bound fires only when bias===0, mirrors oversold/overbought correctly', () => {
+  const oversold = baseSnap({ bbPercentB: 0.02, rsi: 30 });
+  assert(Scoring.buildReversal([null, null, oversold], 0).items.some(([l]) => l === '5M Range-bound bounce (support + RSI oversold)'));
+  const overbought = baseSnap({ bbPercentB: 0.98, rsi: 70 });
+  assert(Scoring.buildReversal([null, null, overbought], 0).items.some(([l]) => l === '5M Range-bound fade (resistance + RSI overbought)'));
+  const nonZeroBias = baseSnap({ divergence: 'none', mfiSignal: null, divergentBarDown: false, wisemanBearish: false, macdBearishCross: false, macdDivergence: 'none' });
+  assert(!Scoring.buildReversal([nonZeroBias, null, oversold], 1).items.some(([l]) => l.includes('Range-bound')));
+});
+
+suite('P — Phase 5 Stage 4: advanced-tier strategies 12, 13 (last stage)');
+
+test('Strategy 12: EMA match + tight pullback + healthy RSI scores; RSI extreme or wide pullback does not', () => {
+  const good = baseSnap({ emaStackBullish: true, ema21: 100, close: 100.1, atr: 1, rsi: 50 });
+  assert(Scoring.buildContinuation([baseSnap({}), good, null], 1).items.some(([l]) => l === '15M Pullback to EMA21 (RSI healthy)'));
+  const badRsi = baseSnap({ emaStackBullish: true, ema21: 100, close: 100.1, atr: 1, rsi: 75 });
+  assert(!Scoring.buildContinuation([baseSnap({}), badRsi, null], 1).items.some(([l, p]) => l.includes('Pullback to EMA21') && p > 0));
+  const wideDist = baseSnap({ emaStackBullish: true, ema21: 100, close: 101, atr: 1, rsi: 50 });
+  assert(!Scoring.buildContinuation([baseSnap({}), wideDist, null], 1).items.some(([l, p]) => l.includes('Pullback to EMA21') && p > 0));
+});
+
+test('Strategy 13: liquidity sweep only warns against bias, never confirms it', () => {
+  const bearSweep = baseSnap({ liquiditySweepDown: true, divergence: 'none', mfiSignal: null, divergentBarDown: false, wisemanBearish: false, macdBearishCross: false, macdDivergence: 'none' });
+  assert(Scoring.buildReversal([bearSweep, null, null], 1).items.some(([l]) => l === '1H Liquidity sweep above resistance, rejected (bearish)'));
+  const bullSweep = baseSnap({ liquiditySweepUp: true, divergence: 'none', mfiSignal: null, divergentBarUp: false, wisemanBullish: false, macdBullishCross: false, macdDivergence: 'none' });
+  assert(Scoring.buildReversal([bullSweep, null, null], -1).items.some(([l]) => l === '1H Liquidity sweep below support, reclaimed (bullish)'));
+  assert(!Scoring.buildReversal([bearSweep, null, null], -1).items.some(([l]) => l.includes('Liquidity sweep')));
+});
+
+test('Phase 5 complete: every arm stays within its cap even with every new-batch signal firing', () => {
+  const cs = uptrend(80);
+  const result = Scoring.evaluate({ h1: cs, m15: cs, m5: cs }, { oiChange15m: 9 });
+  assert(result.score >= 0 && result.score <= 100);
+  // Continuation is a mean of 0-100 sub-scores now (Audit F3) — its range
+  // is 0-100, not the old fixed 65-point cap.
+  assert(result.continuation.score >= 0 && result.continuation.score <= 100);
+  assert(result.exhaustion.score <= 40 && result.reversal.score <= 50);
+});
+
+suite('Q — Provider split: CoinPaprika normalization + tag resolution');
+
+// Minimal fixtures shaped like real CoinPaprika payloads.
+const cpCoin = (id, sym, mcap, c24, c7) => ({
+  id, name: sym, symbol: sym,
+  quotes: { USD: { price: 1, volume_24h: 10, market_cap: mcap,
+                   percent_change_24h: c24, percent_change_7d: c7,
+                   percent_change_30d: 0, percent_change_1y: 0 } }
+});
+
+test('normalizePaprikaCoin: 30d/1y become null, never CoinPaprika raw 0', () => {
+  const n = Indicators && Api.normalizePaprikaCoin(cpCoin('btc-bitcoin','BTC',1e12,1.5,20));
+  assert(n.price_change_percentage_30d_in_currency === null, '30d must be null');
+  assert(n.price_change_percentage_1y_in_currency === null, '1y must be null');
+});
+
+test('normalizePaprikaCoin: emits BOTH 24h key variants (different consumers read each)', () => {
+  const n = Api.normalizePaprikaCoin(cpCoin('btc-bitcoin','BTC',1e12,1.5,20));
+  assert(n.price_change_percentage_24h === 1.5, 'plain key for topNarrativeCandidates');
+  assert(n.price_change_percentage_24h_in_currency === 1.5, '_in_currency key for render');
+});
+
+test('normalizePaprikaCoin: rejects implausible symbols that would become <junk>USDT', () => {
+  assert(Api.normalizePaprikaCoin(cpCoin('x','\u5e01\u5b89\u4eba\u751f',1e9,1,1)) === null, 'non-ASCII rejected');
+  assert(Api.normalizePaprikaCoin(cpCoin('x','USDC.e',1e9,1,1)) === null, 'dotted rejected');
+  assert(Api.normalizePaprikaCoin(cpCoin('x','ZBCN ',1e9,1,1)) === null, 'trailing space rejected');
+  assert(Api.normalizePaprikaCoin(cpCoin('x','M',1e9,1,1)) === null, 'single char rejected');
+  assert(Api.normalizePaprikaCoin(cpCoin('x','BTC',1e9,1,1)) !== null, 'normal symbol kept');
+});
+
+test('normalizePaprikaCoin: null market cap is rejected', () => {
+  const bad = cpCoin('x','ABC',null,1,1);
+  assert(Api.normalizePaprikaCoin(bad) === null);
+});
+
+test('resolveNarrativeTags: picks the tag with the most coins, not array order', () => {
+  const tags = [
+    { id: 'computing-cloud-infrastructure', name: 'Computing & Cloud Infrastructure', coins: ['a','b'] },
+    { id: 'infrastructure',                 name: 'Infrastructure',                   coins: ['a','b','c','d'] }
+  ];
+  const r = Api.resolveNarrativeTags(tags).find(x => x.keyword === 'Infrastructure');
+  assert(r && r.tag.id === 'infrastructure',
+    'longest coin list must win; array order would pick the 2-coin tag');
+});
+
+test('resolveNarrativeTags: unmatched keywords are skipped, not fabricated', () => {
+  const r = Api.resolveNarrativeTags([{ id: 'defi', name: 'DeFi', coins: ['a'] }]);
+  assert(r.length === 1 && r[0].keyword === 'DeFi');
+  assert(!r.some(x => x.keyword === 'Modular Blockchain'), 'no CoinPaprika tag exists for it');
+});
+
+test('resolveNarrativeTags: Privacy is excluded from the fast path by design', () => {
+  const tags = [{ id: 'privacy-security', name: 'Privacy & Security', coins: ['a','b','c'] }];
+  const r = Api.resolveNarrativeTags(tags);
+  assert(!r.some(x => x.keyword === 'Privacy'),
+    'CoinPaprika conflates privacy with security (LTC/WLD/FIL/VET rank in it)');
+});
+
+test('weightedChangeFor: all-null input returns 0 rather than NaN', () => {
+  const coins = [{ market_cap: 100, price_change_percentage_7d_in_currency: null }];
+  assert(Api.weightedChangeFor(coins, 'price_change_percentage_7d_in_currency') === 0);
+});
+
+test('topNarrativeCandidates works against a CoinPaprika-shaped sector (cross-provider contract)', () => {
+  const coins = [
+    Api.normalizePaprikaCoin(cpCoin('eth-ethereum','ETH', 4e11, 2, 30)),
+    Api.normalizePaprikaCoin(cpCoin('tiny-tiny','TINY', 1e6, 9, 99))  // below the 350M floor
+  ];
+  const out = Api.topNarrativeCandidates([
+    { categoryId: 'l1', name: 'Layer 1', mcap: 4e11, weightedChange7d: 30, coins }
+  ]);
+  assert(out.some(c => c.symbol === 'ETHUSDT'), 'large cap promoted');
+  assert(!out.some(c => c.symbol === 'TINYUSDT'), 'sub-350M filtered out');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Render results to DOM
+// ─────────────────────────────────────────────────────────────────────────────
+let totalPass = 0, totalFail = 0;
+const out = document.getElementById('output');
+
+results.forEach(suite => {
+  const div = document.createElement('div');
+  div.className = 'suite';
+
+  const title = document.createElement('div');
+  title.className = 'suite-name';
+  title.textContent = suite.name;
+  div.appendChild(title);
+
+  suite.tests.forEach(t => {
+    const item = document.createElement('div');
+    item.className = 'item';
+    if (t.ok) {
+      item.innerHTML = `<span class="pass">✓</span>  ${t.name}`;
+      totalPass++;
+    } else {
+      item.innerHTML = `<span class="fail">✗</span>  ${t.name}`;
+      const detail = document.createElement('div');
+      detail.className = 'error-detail';
+      detail.textContent = t.err;
+      item.appendChild(detail);
+      totalFail++;
+    }
+    div.appendChild(item);
+  });
+
+  out.appendChild(div);
+});
+
+const summary = document.createElement('div');
+summary.className = `summary ${totalFail === 0 ? 'all-pass' : 'has-fail'}`;
+summary.textContent = totalFail === 0
+  ? `✓ All ${totalPass} tests passed`
+  : `✗ ${totalFail} failed, ${totalPass} passed — see details above`;
+out.appendChild(summary);
+</script>
+</body>
+</html>
