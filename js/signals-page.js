@@ -12,8 +12,8 @@
    ========================================================================== */
 
 (() => {
-  const REST = 'https://fpyfetynfobfrpunnnhv.supabase.co/rest/v1/signal_journal';
-  const KEY = 'sb_publishable_95VI9mw_oHduFoqUlToCmg_CpfPucLC';
+  const REST = 'https://laqytygibnlpdohouxaq.supabase.co/rest/v1/signal_journal';
+  const KEY = 'sb_publishable_UVTLR2Ug_GjpHTEMXIeaJw_IJ1iI3xS';
   // LIST_LIMIT bounds the TABLE only (newest first) -- a UI display cap, not
   // the record itself. The summary tiles and tab counts must reflect the
   // WHOLE journal or they silently window to whatever the table happens to

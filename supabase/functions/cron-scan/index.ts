@@ -55,8 +55,8 @@ declare const Scoring: any;
 declare const SignalJournal: any;
 declare const CoinView: any;
 
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? 'https://fpyfetynfobfrpunnnhv.supabase.co';
-const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? 'https://laqytygibnlpdohouxaq.supabase.co';
+const SERVICE_KEY = Deno.env.get('WICKTOR_SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const TABLE = 'signal_journal';
 const SNAP_TABLE = 'scan_snapshot';
 // The client only ever reads the newest two. A few spares absorb a slow

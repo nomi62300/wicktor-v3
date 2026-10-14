@@ -249,7 +249,7 @@ const Api = (() => {
   // proxied through a Supabase Edge Function so the real CMC key never
   // reaches client-side code. The function whitelists exactly these two
   // paths itself; nothing else is forwarded even if requested.
-  const CMC_PROXY_URL = 'https://fpyfetynfobfrpunnnhv.supabase.co/functions/v1/cmc-proxy';
+  const CMC_PROXY_URL = 'https://laqytygibnlpdohouxaq.supabase.co/functions/v1/cmc-proxy';
 
   async function cmcProxyFetch(path, params) {
     const url = new URL(CMC_PROXY_URL);

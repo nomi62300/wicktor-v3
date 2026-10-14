@@ -33,7 +33,7 @@ select cron.schedule(
   '*/5 * * * *',
   $$
   select net.http_post(
-    url := 'https://fpyfetynfobfrpunnnhv.supabase.co/functions/v1/cron-scan?universe_size=350',
+    url := 'https://laqytygibnlpdohouxaq.supabase.co/functions/v1/cron-scan?universe_size=350',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
       -- Read from Supabase Vault, NOT from a GUC and NOT inlined here.

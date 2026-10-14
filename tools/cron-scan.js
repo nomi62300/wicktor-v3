@@ -31,7 +31,7 @@ global.Indicators = require('../js/indicators.js');
 const Scoring = require('../js/scoring.js');
 const Journal = require('../js/signals.js');
 
-const SUPABASE_URL = 'https://fpyfetynfobfrpunnnhv.supabase.co';
+const SUPABASE_URL = 'https://laqytygibnlpdohouxaq.supabase.co';
 const TABLE = 'signal_journal';
 
 // api.bybit.com 403s from US cloud IPs, which is exactly where GitHub's

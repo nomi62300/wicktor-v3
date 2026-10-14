@@ -30,8 +30,8 @@
   // Read-only access to the stored scan. The publishable key is meant to be
   // public (same key js/auth.js already ships); scan_snapshot is
   // select-only for anon and written solely by the scheduled function.
-  const SUPABASE_REST = 'https://fpyfetynfobfrpunnnhv.supabase.co/rest/v1';
-  const SUPABASE_ANON = 'sb_publishable_95VI9mw_oHduFoqUlToCmg_CpfPucLC';
+  const SUPABASE_REST = 'https://laqytygibnlpdohouxaq.supabase.co/rest/v1';
+  const SUPABASE_ANON = 'sb_publishable_UVTLR2Ug_GjpHTEMXIeaJw_IJ1iI3xS';
 
   // Beta-tester access gate — narrow and explicit: keep the live URL from
   // casual/random visitors, NOT real per-user accounts (no identities, no

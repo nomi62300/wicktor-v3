@@ -21,6 +21,12 @@ project uses [Semantic Versioning](https://semver.org/).
   - Completely isolates Wicktor v3 from the legacy v2 Supabase cloud database, allowing zero-risk independent testing.
   - Added **Live Scan** trigger button in header and an automatic 3-minute client-side scan cycle.
   - Added on-demand live coin search (`searchCoinLive`): searching for any asset (e.g. `FLUID`, `AVA`, `NEAR`) fetches Bybit klines and calculates its v3 trade plan instantly.
+- **Dedicated Supabase v3 Backend Project (`laqytygibnlpdohouxaq`):**
+  - Configured and linked independent Tokyo (`ap-northeast-1`) Supabase backend for Wicktor v3.
+  - Applied all 16 schema migrations (`scan_snapshot`, `signal_journal`, `watchlist`, `pg_cron`, RLS policies).
+  - Deployed v3 Edge Functions (`cron-scan` with local swing SL / 3R targets and `cmc-proxy`).
+  - Securely configured Supabase Vault with `wicktor_service_key` for scheduled scans.
+  - Updated configuration across `js/app.js`, `js/auth.js`, `js/signals-page.js`, and `js/api.js`.
 
 ### Changed
 - **Beta Access Code Rotated (`js/app.js`):**

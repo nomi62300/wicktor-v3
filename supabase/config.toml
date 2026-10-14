@@ -6,6 +6,9 @@
 [functions.cmc-proxy]
 verify_jwt = false
 
+[functions.cron-scan]
+verify_jwt = false
+
 # Phase 3: real Supabase Auth (email/password), additive alongside the
 # existing access-code gate in js/app.js — see project memory for why
 # (owner's explicit call: coexist, don't replace). Password chosen over

@@ -93,6 +93,14 @@ node tools/diff-scores.js tools/snapshots/baseline.json tools/snapshots/v3.json
 
 ---
 
+## Backend Infrastructure (Supabase v3)
+- **Project Reference:** `laqytygibnlpdohouxaq` (Tokyo `ap-northeast-1` region, bypassing Bybit IP blocks)
+- **Database Tables:** `scan_snapshot` (rolling scan caches), `signal_journal` (outcome tracking), `watchlist`, `scan_stage`
+- **Edge Functions:** `cron-scan` (Tokyo edge runtime executing v3 scoring) and `cmc-proxy`
+- **Security & RLS:** Automatic Row-Level Security (RLS) enabled across all public tables, with `wicktor_service_key` secured inside Supabase Vault.
+
+---
+
 ## Project Structure
 
 ```

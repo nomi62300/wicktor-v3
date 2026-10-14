@@ -11,8 +11,8 @@
    ========================================================================== */
 
 const Auth = (() => {
-  const SUPABASE_URL = 'https://fpyfetynfobfrpunnnhv.supabase.co';
-  const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_95VI9mw_oHduFoqUlToCmg_CpfPucLC';
+  const SUPABASE_URL = 'https://laqytygibnlpdohouxaq.supabase.co';
+  const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_UVTLR2Ug_GjpHTEMXIeaJw_IJ1iI3xS';
 
   // Audit F4: window.supabase comes from a CDN <script> tag, which can be
   // blocked (ad-blocker, offline, CDN outage). createClient() throwing here
