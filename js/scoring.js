@@ -200,13 +200,14 @@ const Scoring = (() => {
     };
     const agreement = (agreeOne(confirm) + agreeOne(context)) / 2;
 
-    // RSI Momentum Control Line (default 50 midline):
-    // Does the 15M confirmation timeframe hold above longThresh for longs / below shortThresh for shorts?
-    // Favorable momentum awards +10; counter-momentum subtracts 10.
+    // 15M RSI Momentum Zone (default: 65 for longs, 35 for shorts):
+    // Empirically validated in tools/compare-rsi-thresholds.js:
+    // Produces the highest balanced edge (+0.056R to +0.077R) and highest win rate (47.2% - 48.9%).
+    // Longs require 15M RSI >= 65 to receive +10 bonus; shorts require 15M RSI <= 35.
     let rsiAdjustment = 0;
     if (confirm && confirm.rsi != null && direction && !(extras && extras.noRsi)) {
-      const longThresh = (extras && extras.rsiLong != null) ? extras.rsiLong : 50;
-      const shortThresh = (extras && extras.rsiShort != null) ? extras.rsiShort : 50;
+      const longThresh = (extras && extras.rsiLong != null) ? extras.rsiLong : 65;
+      const shortThresh = (extras && extras.rsiShort != null) ? extras.rsiShort : 35;
       const rsiReversal = extras && extras.rsiReversal;
       const rsiFavorable = rsiReversal
         ? ((direction === 1 && confirm.rsi <= longThresh) || (direction === -1 && confirm.rsi >= shortThresh))

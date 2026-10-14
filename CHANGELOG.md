@@ -4,25 +4,27 @@ All notable changes to Wicktor are documented in this file, in the
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. This
 project uses [Semantic Versioning](https://semver.org/).
 
-## [v3.2.1] - Empirical Backtest Study: 15M RSI Thresholds (50 vs 60 vs 35)
+## [v3.2.1] - Active TF Trend Alignment Fix & 65/35 Momentum Zone Production Rollout
 
-### Backtest Research & Empirical Findings (`tools/compare-rsi-thresholds.js`)
-- **Evaluated 15M RSI Threshold Configurations:**
-  - Evaluated **8,999 deduped signals** across 175 coin windows spanning 3 historical market regimes (+25.0% bull, +1.2% flat, -4.7% bear).
-  - Compared:
-    1. **Control Baseline (No RSI):** $n=806$ EXCELLENT signals, 45.3% win rate, **$+0.030R$ balanced edge**.
-    2. **RSI 50 Midline (Safu Baseline):** $n=985$ EXCELLENT signals, 43.7% win rate, **$+0.016R$ balanced edge** (scoring term); **$+0.045R$** (direct gate, $n=756$).
-    3. **RSI 60 Power Zone (60/40):** $n=742$ EXCELLENT signals, 44.7% win rate, **$+0.017R$ balanced edge** (scoring term); **$+0.069R$** (direct gate, $n=531$).
-    4. **RSI 35 Momentum Zone (65/35):** $n=585$ EXCELLENT signals, **47.2% win rate**, **$+0.056R$ balanced edge** (scoring term); **$+0.077R$ balanced edge** & **48.9% win rate** (direct gate, $n=348$).
-    5. **RSI 35 Loose Floor (35/65):** $n=1,028$ EXCELLENT signals, 43.9% win rate, **$+0.008R$ balanced edge** (dilutes quality).
-    6. **RSI 35 Reversal / Dip (<=35 / >=65):** 0 EXCELLENT signals passed under trend continuation.
-- **Key Finding:**
-  - The **65/35 Extreme Momentum Zone** is the clear winner, delivering the highest drift-safe balanced edge ($+0.056R$ to $+0.077R$) and win rate (47.2% to 48.9%), with robust positive returns across both longs ($+0.063R$) and shorts ($+0.090R$).
-- **Tool Added:**
-  - Created [`tools/compare-rsi-thresholds.js`](file:///Users/noumanmushtaq/Downloads/wicktor%20v3/tools/compare-rsi-thresholds.js) to run high-performance, single-pass multi-threshold evaluation.
-- **Scoring Engine Update (`js/scoring.js`):**
-  - Parameterized `contextQuality` and `scoreSetup` with `extras` (`rsiLong`, `rsiShort`, `rsiReversal`, `noRsi`) preserving 100% backward compatibility.
-  - All 138 unit tests pass (100%).
+### Fixed
+- **Active TF Trend Direction & Consistency Bug (`js/coinview.js` & `render.js`):**
+  - **Issue:** `tfChipData` was deriving trend direction solely from `(last.c - prev.c) > 0` over a single unclosed 5-minute candle tick. In a steep downtrend or pullback where a 5M bar ticked green by +0.00008 (+0.30%), the card rendered green upward arrows (`▲`) across all timeframes despite the trade being a `Short` with `Trend down`.
+  - **Identical Percentages:** Because Bybit's realtime kline query shared the exact same previous-close timestamp at hour/sub-hour boundaries (e.g. 08:00 UTC), 5M, 15M, and 1H candles calculated identical percentages.
+  - **Fix:** 
+    1. Tied each chip's trend direction (`'up'` / `'down'` / `'flat'`) to the true structural trend: Williams Alligator `lineOrder` (1 = bullish lips > teeth > jaw, -1 = bearish lips < teeth < jaw), EMA9 vs EMA21, and alignment.
+    2. Added 4H structural trend analysis via `Indicators.analyzeTimeframe(candles.h4)`.
+    3. Replaced tick-difference % with each timeframe candle's open-to-close change (`(last.c - last.o) / last.o * 100`), ensuring distinct and genuine timeframe percentages.
+    4. Ensured `side` badge uses `result.setupDirection || result.bias` so the trade side always matches the trigger direction.
+
+### Changed
+- **65 / 35 Momentum Zone Production Rollout (`js/scoring.js` & Supabase Tokyo `cron-scan`):**
+  - Upgraded production default 15M RSI thresholds from neutral midline `50 / 50` to the empirically superior `65 / 35 Momentum Zone`:
+    - Long trades require 15M $\text{RSI} \ge 65$ for the $+10$ momentum bonus (below 65 deducts $-10$).
+    - Short trades require 15M $\text{RSI} \le 35$ for the $+10$ momentum bonus (above 35 deducts $-10$).
+  - Validated by backtest over 8,999 signals: nearly doubles balanced edge from $+0.030R$ to **$+0.056R$** (and **$+0.077R$** when gated), lifting win rate to **47.2% – 48.9%**.
+  - Re-deployed Supabase Tokyo Edge Function `cron-scan` to project `laqytygibnlpdohouxaq`.
+  - Bumped cache-busting script query string in `index.html` to `?v=3.2.1`.
+  - Verified 100% test pass rate (138/138 passing).
 
 ## [v3.2.0] - Extended 8-Hour Trade Horizon, Enhanced 500-Coin Universe & Automated Scanning Cadence
 

@@ -27,16 +27,46 @@
 
 const CoinView = (() => {
 
-  // Card's Active TF row (4H/1H/15M/5M): last-candle close vs the one
-  // before it — a simple, display-only trend reading, deliberately not the
-  // Alligator-confidence tiering used for scoring (that's a 1H/15M/5M-only
-  // concept and has no natural 4H analog).
-  function tfChipData(label, candles) {
+  // Card's Active TF row (4H/1H/15M/5M): displays the true structural trend
+  // (Williams Alligator lineOrder & EMA stack) for each timeframe, along with
+  // the timeframe candle's open-to-close % change.
+  function tfChipData(label, candles, snap = null) {
     if (!candles || candles.length < 2) return { label, trend: 'flat', pct: null };
     const last = candles[candles.length - 1];
     const prev = candles[candles.length - 2];
-    const pct = prev.c ? ((last.c - prev.c) / prev.c) * 100 : 0;
-    const trend = pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat';
+
+    // Timeframe bar % change: current candle close vs open on this specific timeframe
+    let pct = 0;
+    if (last && last.o) {
+      pct = ((last.c - last.o) / last.o) * 100;
+    } else if (prev && prev.c) {
+      pct = ((last.c - prev.c) / prev.c) * 100;
+    }
+
+    // Determine true structural trend from timeframe snapshot
+    let trend = 'flat';
+    if (snap) {
+      if (snap.lineOrder === 1) trend = 'up';
+      else if (snap.lineOrder === -1) trend = 'down';
+      else if (snap.ema9 != null && snap.ema21 != null && snap.ema9 !== snap.ema21) {
+        trend = snap.ema9 > snap.ema21 ? 'up' : 'down';
+      } else if (snap.alignment !== 0) {
+        trend = snap.alignment === 1 ? 'up' : 'down';
+      }
+    }
+
+    // Fallback if snap was not provided or is neutral
+    if (trend === 'flat') {
+      if (candles.length >= 6) {
+        const start = candles[candles.length - 6].c;
+        const net = start ? ((last.c - start) / start) * 100 : 0;
+        if (Math.abs(net) > 0.05) trend = net > 0 ? 'up' : 'down';
+      }
+      if (trend === 'flat') {
+        trend = pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat';
+      }
+    }
+
     return { label, trend, pct };
   }
 
@@ -86,6 +116,15 @@ const CoinView = (() => {
     const displaySymbol = String(base.symbol).replace(/USDT$/, '');
     const mcapRaw = extras ? extras.mcapRaw : null;
 
+    const tradeDir = result.setupDirection || result.bias || 1;
+    const tfSnaps = result.tfSnapshots || [];
+
+    // Analyze 4H candles with Indicators if available to obtain its true Alligator & EMA regime
+    let snap4h = null;
+    if (typeof Indicators !== 'undefined' && Indicators.analyzeTimeframe && candles && candles.h4 && candles.h4.length >= 20) {
+      try { snap4h = Indicators.analyzeTimeframe(candles.h4); } catch {}
+    }
+
     return {
       symbol: displaySymbol,
       rawSymbol: base.symbol,
@@ -93,8 +132,8 @@ const CoinView = (() => {
       sector: (extras && extras.sector) || (base.isStock ? 'Tokenized Stock' : 'Crypto'),
       price: formatPrice(priceNum),
       priceRaw: priceNum,
-      side: result.bias === 1 ? (market === 'PERP' ? 'Long' : 'Buy')
-                              : (market === 'PERP' ? 'Short' : 'Sell'),
+      side: tradeDir === 1 ? (market === 'PERP' ? 'Long' : 'Buy')
+                           : (market === 'PERP' ? 'Short' : 'Sell'),
       mcap: formatMcap(mcapRaw),
       mcapRaw: mcapRaw == null ? null : mcapRaw,
       volatility: classifyVolatility(candles && candles.h1),
@@ -102,10 +141,10 @@ const CoinView = (() => {
       // undefined at every read site (render.js branches on it).
       unlock: null,
       tfChips: [
-        tfChipData('4H', candles && candles.h4),
-        tfChipData('1H', candles && candles.h1),
-        tfChipData('15M', candles && candles.m15),
-        tfChipData('5M', candles && candles.m5)
+        tfChipData('4H', candles && candles.h4, snap4h),
+        tfChipData('1H', candles && candles.h1, tfSnaps[0]),
+        tfChipData('15M', candles && candles.m15, tfSnaps[1]),
+        tfChipData('5M', candles && candles.m5, tfSnaps[2])
       ],
       resistance: formatPrice(result.tfSnapshots[0].resistance),
       support: formatPrice(result.tfSnapshots[0].support),
