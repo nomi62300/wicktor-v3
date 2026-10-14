@@ -716,37 +716,24 @@ test('journal: tpTouches records completion elapsed minutes for each TP', () => 
   assert.strictEqual(tp.tp3_min, 30);
 });
 
-test('coinview: tfChipData calculates percent change against previous candle close and harmonizes trend', () => {
-  const candlesUp = [
+test('coinview: tfChipData derives trend from Alligator lineOrder and computes percent change from previous close', () => {
+  const candles = [
     { t: 1000, o: 100, h: 102, l: 99, c: 100, v: 10 },
     { t: 2000, o: 100, h: 106, l: 100, c: 105, v: 20 }
   ];
-  const chipUp = CoinView.tfChipData('15M', candlesUp);
-  assert.strictEqual(chipUp.label, '15M');
-  assert.strictEqual(chipUp.trend, 'up');
-  assert.strictEqual(Math.round(chipUp.pct * 100) / 100, 5.00);
+  // Even if price ticked up +5%, bearish Alligator lineOrder (-1) sets trend to 'down'
+  const chipBearAlligator = CoinView.tfChipData('1H', candles, { lineOrder: -1 });
+  assert.strictEqual(chipBearAlligator.trend, 'down');
+  assert.strictEqual(Math.round(chipBearAlligator.pct * 100) / 100, 5.00);
 
-  const candlesDown = [
-    { t: 1000, o: 100, h: 102, l: 99, c: 100, v: 10 },
-    { t: 2000, o: 99, h: 100, l: 95, c: 96, v: 20 }
-  ];
-  const chipDown = CoinView.tfChipData('5M', candlesDown);
-  assert.strictEqual(chipDown.label, '5M');
-  assert.strictEqual(chipDown.trend, 'down');
-  assert.strictEqual(Math.round(chipDown.pct * 100) / 100, -4.00);
+  // Bullish Alligator lineOrder (1) sets trend to 'up'
+  const chipBullAlligator = CoinView.tfChipData('15M', candles, { lineOrder: 1 });
+  assert.strictEqual(chipBullAlligator.trend, 'up');
+  assert.strictEqual(Math.round(chipBullAlligator.pct * 100) / 100, 5.00);
 
-  // Flat candle (0% change) uses structural fallback
-  const candlesFlat = [
-    { t: 1000, o: 100, h: 100, l: 100, c: 100, v: 0 },
-    { t: 2000, o: 100, h: 100, l: 100, c: 100, v: 0 }
-  ];
-  const chipFlatBull = CoinView.tfChipData('1H', candlesFlat, { lineOrder: 1 });
-  assert.strictEqual(chipFlatBull.pct, 0);
-  assert.strictEqual(chipFlatBull.trend, 'up');
-
-  const chipFlatBear = CoinView.tfChipData('4H', candlesFlat, { lineOrder: -1 });
-  assert.strictEqual(chipFlatBear.pct, 0);
-  assert.strictEqual(chipFlatBear.trend, 'down');
+  // Without snap, fallback uses price direction
+  const chipFallback = CoinView.tfChipData('5M', candles);
+  assert.strictEqual(chipFallback.trend, 'up');
 });
 
 // ---------------------------------------------------------------------------

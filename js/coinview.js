@@ -27,9 +27,9 @@
 
 const CoinView = (() => {
 
-  // Card's Active TF row (4H/1H/15M/5M): displays the true price change
-  // and directional momentum for each timeframe compared to that timeframe's
-  // previous candle close (5m, 15m, 1h, 4h ago).
+  // Card's Active TF row (4H/1H/15M/5M): displays the true structural trend
+  // derived from Williams Alligator lineOrder for each timeframe, along with
+  // the timeframe's price % change compared to its previous closed candle.
   function tfChipData(label, candles, snap = null) {
     if (!candles || candles.length < 2) return { label, trend: 'flat', pct: null };
     const last = candles[candles.length - 1];
@@ -43,23 +43,23 @@ const CoinView = (() => {
       pct = ((last.c - last.o) / last.o) * 100;
     }
 
-    // Directional trend must agree with percentage change:
-    // Positive change -> green upward arrow (▲)
-    // Negative change -> red downward arrow (▼)
-    // Flat change (0.00%) -> neutral line or fallback to structural Alligator lineOrder
+    // Trend derived from Williams Alligator lineOrder:
+    // 1 = Bullish (Lips > Teeth > Jaw) -> 'up'
+    // -1 = Bearish (Lips < Teeth < Jaw) -> 'down'
     let trend = 'flat';
-    if (pct > 0.01) {
-      trend = 'up';
-    } else if (pct < -0.01) {
-      trend = 'down';
-    } else {
-      if (snap) {
-        if (snap.lineOrder === 1) trend = 'up';
-        else if (snap.lineOrder === -1) trend = 'down';
-        else if (snap.ema9 != null && snap.ema21 != null && snap.ema9 !== snap.ema21) {
-          trend = snap.ema9 > snap.ema21 ? 'up' : 'down';
-        }
+    if (snap) {
+      if (snap.lineOrder === 1) trend = 'up';
+      else if (snap.lineOrder === -1) trend = 'down';
+      else if (snap.ema9 != null && snap.ema21 != null && snap.ema9 !== snap.ema21) {
+        trend = snap.ema9 > snap.ema21 ? 'up' : 'down';
+      } else if (snap.alignment !== 0) {
+        trend = snap.alignment === 1 ? 'up' : 'down';
       }
+    }
+
+    // Fallback if snap was not provided or neutral
+    if (trend === 'flat') {
+      trend = pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat';
     }
 
     return { label, trend, pct };

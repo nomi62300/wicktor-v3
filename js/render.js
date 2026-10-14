@@ -36,13 +36,14 @@ const Render = (() => {
   };
   function tfChipHtml(chip) {
     const color = chip.trend === 'up' ? 'var(--green-text)' : chip.trend === 'down' ? 'var(--red-text)' : 'var(--text3)';
+    const pctColor = chip.pct == null ? 'var(--text3)' : (chip.pct >= 0 ? 'var(--green-text)' : 'var(--red-text)');
     const pctText = chip.pct == null ? '(--)' : `(${chip.pct > 0 ? '+' : ''}${chip.pct.toFixed(2)}%)`;
     return `<div class="tf-chip">
       <div class="tf-chip-top">
         <span class="tf-chip-name">${esc(chip.label)}</span>
         <span class="tf-chip-trend" style="color:${color}">${TF_TREND_ICONS[chip.trend]}</span>
       </div>
-      <div class="tf-chip-pct" style="color:${color}">${pctText}</div>
+      <div class="tf-chip-pct" style="color:${pctColor}">${pctText}</div>
     </div>`;
   }
   function tfChipRowHtml(tfChips) {
@@ -286,9 +287,7 @@ const Render = (() => {
                   : (coin.side === 'Sell' || coin.side === 'Short') ? ' side-sell'
                   : '';
 
-    const timeLabel = coin.discoveredAgo === 'just now'
-      ? (band.text === 'EXCELLENT' ? 'signal just now' : 'just now')
-      : (band.text === 'EXCELLENT' ? `signal ${coin.discoveredAgo} ago` : `in ${band.text.toLowerCase()} ${coin.discoveredAgo}`);
+    const timeLabel = coin.discoveredAgo === 'just now' ? 'just now' : `${coin.discoveredAgo} ago`;
 
     return `
     <div class="coin-card${unlockSevereCls}${sideCls}" data-idx="${idx}" tabindex="0" role="button" aria-label="${esc(coin.symbol)} details">

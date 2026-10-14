@@ -4,6 +4,22 @@ All notable changes to Wicktor are documented in this file, in the
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. This
 project uses [Semantic Versioning](https://semver.org/).
 
+## [v3.2.4] - Alligator-Derived Structural Trend & Simplified Card Time Ago
+
+### Changed
+- **Active TF Trend Derived from Williams Alligator (`js/coinview.js` & `render.js`):**
+  - Timeframe arrow direction (`▲` / `▼` / `―`) is derived directly from Williams Alligator `lineOrder`:
+    - `lineOrder === 1` (Lips > Teeth > Jaw): Bullish trend arrow (`▲`).
+    - `lineOrder === -1` (Lips < Teeth < Jaw): Bearish trend arrow (`▼`).
+    - Neutral or flat: falls back to EMA 9/21 stack or timeframe return.
+  - Percentage text color in `render.js` is tied to the return sign ($+ \rightarrow$ green, $- \rightarrow$ red), while the arrow reflects the structural Alligator trend.
+- **Card Timestamp Simplification (`js/render.js`):**
+  - Removed band prefixes (`"in watch"`, `"in avoid"`, `"signal"`) from the card timestamp per user request.
+  - Cards now cleanly display only the relative time: `just now`, `15m ago`, `1h ago`, `2d ago`.
+- **Edge Function Redeployment & Testing:**
+  - Redeployed `cron-scan` Edge Function to Tokyo Supabase (`laqytygibnlpdohouxaq`).
+  - Unit tests updated in `tests/indicators.test.js` (140/140 passed).
+
 ## [v3.2.3] - Active TF Dynamic Scan Refresh & Direction-Harmonized Timeframe Chips
 
 ### Fixed & Improved
