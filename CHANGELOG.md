@@ -43,6 +43,10 @@ project uses [Semantic Versioning](https://semver.org/).
   - Validated that higher score buckets consistently pay higher returns (Monotonicity: 50-59 at -0.013 up to 80-100 at +0.016).
 - **Snapshot Diff Benchmark (`tools/diff-scores.js`):**
   - 26 coins adjusted in live snapshot (`tools/snapshots/v3-with-safu.json`), correctly demoting counter-momentum traps (e.g. `DOGE` and `MON` moved from WATCH to AVOID) and elevating high-conviction setups (e.g. `FARTCOIN` and `XPL` promoted to EXCELLENT).
+- **Live Signal Journal Logging & Auto-Resolution:**
+  - Audited live database writes to `signal_journal` from the Tokyo `cron-scan` edge function.
+  - Confirmed autonomous logging of all `score >= 80` (EXCELLENT) setups with accurate directional bias (`1` for Long, `-1` for Short), 15M local swing stops, and 1:3 R:R targets (verified active entries through row ID 257).
+  - Validated relative paths across `index.html` and `signals.html` for out-of-the-box GitHub Pages deployment.
 
 ## [v3.0.0] - Wicktor v3: Dynamic Local Swing R:R & Inverted Geometry Fix
 
