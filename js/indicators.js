@@ -660,6 +660,23 @@ const Indicators = (() => {
       if (sweep.up) push('liquiditySweep', 1, k);
       if (sweep.down) push('liquiditySweep', -1, k);
 
+      // Wick Rejection (Pin Bar / Extreme Rejection Wick)
+      // Adopted from Safu Bot: lower wick >= 3.5x body signals aggressive buyer absorption (Long),
+      // upper wick >= 3.5x body signals aggressive seller absorption (Short).
+      const bar = candles[k];
+      const atrK = (atrSeries && atrSeries[k] > 0) ? atrSeries[k] : 0;
+      const body = Math.max(Math.abs(bar.o - bar.c), 0.0001);
+      const lowerWick = Math.min(bar.o, bar.c) - bar.l;
+      const upperWick = bar.h - Math.max(bar.o, bar.c);
+      const minWick = 0.4 * atrK;
+
+      if ((lowerWick / body) >= 3.5 && (lowerWick / body) < 20 && lowerWick >= minWick) {
+        push('wickRejection', 1, k);
+      }
+      if ((upperWick / body) >= 3.5 && (upperWick / body) < 20 && upperWick >= minWick) {
+        push('wickRejection', -1, k);
+      }
+
       // Structural break: close crossing the most recent confirmed fractal.
       // lastFractal(..., k - 2) keeps the same confirmation lag used
       // everywhere else, so this never reads a fractal that wasn't yet

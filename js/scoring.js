@@ -135,13 +135,11 @@ const Scoring = (() => {
   // this sample size the per-regime cells are not distinguishable in this
   // structure, and inventing variation would be dressing up a guess.
   const TRIGGER_FIT = {
-    trending:   { levelBreak: 100, macdCross: 95, bandBreakout: 65, liquiditySweep: 50, bandFade: 35, stochCrossFromExtreme: 35 },
-    transition: { levelBreak: 95,  macdCross: 90, bandBreakout: 60, liquiditySweep: 50, bandFade: 35, stochCrossFromExtreme: 35 },
-    ranging:    { levelBreak: 85,  macdCross: 85, bandBreakout: 55, liquiditySweep: 50, bandFade: 40, stochCrossFromExtreme: 40 },
-    // Squeeze breakouts were the worst-measured cell of the earlier study
-    // and nothing since has rehabilitated them.
-    squeeze:    { levelBreak: 40,  macdCross: 50, bandBreakout: 30, liquiditySweep: 35, bandFade: 30, stochCrossFromExtreme: 30 },
-    unknown:    { levelBreak: 50,  macdCross: 50, bandBreakout: 40, liquiditySweep: 35, bandFade: 30, stochCrossFromExtreme: 30 }
+    trending:   { levelBreak: 100, macdCross: 95, wickRejection: 90, bandBreakout: 65, liquiditySweep: 50, bandFade: 35, stochCrossFromExtreme: 35 },
+    transition: { levelBreak: 95,  macdCross: 90, wickRejection: 85, bandBreakout: 60, liquiditySweep: 50, bandFade: 35, stochCrossFromExtreme: 35 },
+    ranging:    { wickRejection: 90, levelBreak: 85,  macdCross: 85, bandBreakout: 55, liquiditySweep: 50, bandFade: 40, stochCrossFromExtreme: 40 },
+    squeeze:    { levelBreak: 40,  macdCross: 50, wickRejection: 45, bandBreakout: 30, liquiditySweep: 35, bandFade: 30, stochCrossFromExtreme: 30 },
+    unknown:    { levelBreak: 50,  macdCross: 50, wickRejection: 45, bandBreakout: 40, liquiditySweep: 35, bandFade: 30, stochCrossFromExtreme: 30 }
   };
 
   /**
@@ -202,7 +200,17 @@ const Scoring = (() => {
     };
     const agreement = (agreeOne(confirm) + agreeOne(context)) / 2;
 
-    return 0.5 * regimeScore + 0.5 * agreement;
+    // RSI 50 Momentum Control Line:
+    // Does the 15M confirmation timeframe hold above 50 for longs / below 50 for shorts?
+    // Favorable momentum awards +10; counter-momentum subtracts 10.
+    let rsiAdjustment = 0;
+    if (confirm && confirm.rsi != null && direction) {
+      const rsiFavorable = (direction === 1 && confirm.rsi >= 50) || (direction === -1 && confirm.rsi <= 50);
+      rsiAdjustment = rsiFavorable ? 10 : -10;
+    }
+
+    const baseContext = 0.5 * regimeScore + 0.5 * agreement;
+    return Math.max(0, Math.min(100, baseContext + rsiAdjustment));
   }
 
   /**

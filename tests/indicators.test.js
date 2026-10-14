@@ -943,6 +943,26 @@ test('C3 triggers: bandFade mirrors correctly at the lower band', () => {
   assert.ok(fade && fade.direction === 1, 'a lower-band reclaim is bullish');
 });
 
+test('v3 triggers: wickRejection detects a bullish hammer rejection (lower wick >= 3.5x body)', () => {
+  const ctx = triggerCtx({});
+  // bar 11: open 100, close 101 (body 1), high 101.2, low 96 (lower wick 4 = 4x body, atr = 1)
+  ctx.candles[11] = { t: 11000, o: 100, c: 101, h: 101.2, l: 96, v: 100 };
+  const t = Indicators.detectTriggers(ctx).find(x => x.name === 'wickRejection');
+  assert.ok(t, 'wickRejection should be detected');
+  assert.strictEqual(t.direction, 1, 'bullish absorption');
+  assert.strictEqual(t.barsAgo, 0);
+});
+
+test('v3 triggers: wickRejection detects a bearish shooting star rejection (upper wick >= 3.5x body)', () => {
+  const ctx = triggerCtx({});
+  // bar 11: open 100, close 99 (body 1), low 98.8, high 104 (upper wick 4 = 4x body, atr = 1)
+  ctx.candles[11] = { t: 11000, o: 100, c: 99, h: 104, l: 98.8, v: 100 };
+  const t = Indicators.detectTriggers(ctx).find(x => x.name === 'wickRejection');
+  assert.ok(t, 'wickRejection should be detected');
+  assert.strictEqual(t.direction, -1, 'bearish absorption');
+  assert.strictEqual(t.barsAgo, 0);
+});
+
 test('C4: bandFade exists and is scored, but is not promoted over continuation', () => {
   const score = name => Scoring.scoreSetup(
     [c4Snap({}), c4Snap({}), c4Snap({ triggers: [TRIG(name, 1)] })],
