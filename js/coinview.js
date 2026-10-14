@@ -27,43 +27,38 @@
 
 const CoinView = (() => {
 
-  // Card's Active TF row (4H/1H/15M/5M): displays the true structural trend
-  // (Williams Alligator lineOrder & EMA stack) for each timeframe, along with
-  // the timeframe candle's open-to-close % change.
+  // Card's Active TF row (4H/1H/15M/5M): displays the true price change
+  // and directional momentum for each timeframe compared to that timeframe's
+  // previous candle close (5m, 15m, 1h, 4h ago).
   function tfChipData(label, candles, snap = null) {
     if (!candles || candles.length < 2) return { label, trend: 'flat', pct: null };
     const last = candles[candles.length - 1];
     const prev = candles[candles.length - 2];
 
-    // Timeframe bar % change: current candle close vs open on this specific timeframe
+    // Timeframe bar % change: compare current price against the previous closed candle on this timeframe
     let pct = 0;
-    if (last && last.o) {
-      pct = ((last.c - last.o) / last.o) * 100;
-    } else if (prev && prev.c) {
+    if (prev && prev.c) {
       pct = ((last.c - prev.c) / prev.c) * 100;
+    } else if (last && last.o) {
+      pct = ((last.c - last.o) / last.o) * 100;
     }
 
-    // Determine true structural trend from timeframe snapshot
+    // Directional trend must agree with percentage change:
+    // Positive change -> green upward arrow (▲)
+    // Negative change -> red downward arrow (▼)
+    // Flat change (0.00%) -> neutral line or fallback to structural Alligator lineOrder
     let trend = 'flat';
-    if (snap) {
-      if (snap.lineOrder === 1) trend = 'up';
-      else if (snap.lineOrder === -1) trend = 'down';
-      else if (snap.ema9 != null && snap.ema21 != null && snap.ema9 !== snap.ema21) {
-        trend = snap.ema9 > snap.ema21 ? 'up' : 'down';
-      } else if (snap.alignment !== 0) {
-        trend = snap.alignment === 1 ? 'up' : 'down';
-      }
-    }
-
-    // Fallback if snap was not provided or is neutral
-    if (trend === 'flat') {
-      if (candles.length >= 6) {
-        const start = candles[candles.length - 6].c;
-        const net = start ? ((last.c - start) / start) * 100 : 0;
-        if (Math.abs(net) > 0.05) trend = net > 0 ? 'up' : 'down';
-      }
-      if (trend === 'flat') {
-        trend = pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat';
+    if (pct > 0.01) {
+      trend = 'up';
+    } else if (pct < -0.01) {
+      trend = 'down';
+    } else {
+      if (snap) {
+        if (snap.lineOrder === 1) trend = 'up';
+        else if (snap.lineOrder === -1) trend = 'down';
+        else if (snap.ema9 != null && snap.ema21 != null && snap.ema9 !== snap.ema21) {
+          trend = snap.ema9 > snap.ema21 ? 'up' : 'down';
+        }
       }
     }
 

@@ -286,10 +286,14 @@ const Render = (() => {
                   : (coin.side === 'Sell' || coin.side === 'Short') ? ' side-sell'
                   : '';
 
+    const timeLabel = coin.discoveredAgo === 'just now'
+      ? (band.text === 'EXCELLENT' ? 'signal just now' : 'just now')
+      : (band.text === 'EXCELLENT' ? `signal ${coin.discoveredAgo} ago` : `in ${band.text.toLowerCase()} ${coin.discoveredAgo}`);
+
     return `
     <div class="coin-card${unlockSevereCls}${sideCls}" data-idx="${idx}" tabindex="0" role="button" aria-label="${esc(coin.symbol)} details">
       <div class="card-row-top">
-        <span class="card-time"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> ${esc(coin.discoveredAgo)} ago${newFlagHtml(coin.isNew)}${scoreDeltaHtml(coin.scoreDelta, coin.score)}</span>
+        <span class="card-time"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> ${esc(timeLabel)}${newFlagHtml(coin.isNew)}${scoreDeltaHtml(coin.scoreDelta, coin.score)}</span>
         ${marketBadgeHtml(coin.market)}
       </div>
       <div class="card-head">

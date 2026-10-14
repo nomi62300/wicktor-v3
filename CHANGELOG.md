@@ -4,6 +4,24 @@ All notable changes to Wicktor are documented in this file, in the
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. This
 project uses [Semantic Versioning](https://semver.org/).
 
+## [v3.2.3] - Active TF Dynamic Scan Refresh & Direction-Harmonized Timeframe Chips
+
+### Fixed & Improved
+- **Active TF % Change Dynamic Updating (`js/coinview.js`):**
+  - **Issue:** `tfChipData` previously calculated `% change` as `(last.c - last.o) / last.o` using the open of the current in-progress candle. At the start of a candle or on flat/illiquid bars, `last.c == last.o`, causing 5M and 15M to be stuck at `(0.00%)` across scans, while 1H and 4H showed unchanging percentages for hours.
+  - **Fix:** Switched % change calculation to compare current price against the previous candle close on that specific timeframe: `((last.c - prev.c) / prev.c) * 100`. Now, 5M reflects the 5-minute price change, 15M reflects the 15-minute price change, 1H reflects the 1-hour price change, and 4H reflects the 4-hour price change, updating dynamically on every single scan.
+- **Directional Trend & Color Harmonization (`js/coinview.js`):**
+  - Eliminated conflicting directional indicators (e.g. red down arrow `▼` next to positive `+1.03%` or green up arrow `▲` next to negative `-0.73%`).
+  - Positive percentage changes ($\ge +0.01\%$) strictly render green upward arrows (`▲`).
+  - Negative percentage changes ($\le -0.01\%$) strictly render red downward arrows (`▼`).
+  - Neutral / flat changes ($0.00\%$) render neutral flat bars (`―`) with structural trend fallback.
+- **Card Header Discovery Time Label (`js/render.js`):**
+  - Fixed misleading `1h ago` label on WATCH/AVOID cards that led users to believe scans were 1 hour stale. Cards now display `in watch 1h` or `in avoid 1h` to clearly communicate score-band duration rather than scan freshness.
+  - Fixed grammatical `just now ago` bug for newly discovered signals, cleanly rendering `signal just now` or `new signal`.
+- **Edge Function Redeployment & Testing:**
+  - Redeployed `cron-scan` Edge Function to Tokyo Supabase (`laqytygibnlpdohouxaq`).
+  - Added unit test suite for `CoinView.tfChipData` in `tests/indicators.test.js` (140/140 passing, 0 failures).
+
 ## [v3.2.2] - TP Completion Elapsed Times & Trade Duration Journaling
 
 ### Added
