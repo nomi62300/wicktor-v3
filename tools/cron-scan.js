@@ -202,11 +202,25 @@ async function logSignals(coins) {
   // Skip a symbol that already has an open row for the same
   // market+direction -- one position per symbol until it resolves or
   // times out. See the matching note in js/signals.js's logFromScan().
+  const breadth = Journal.computeMarketBreadth(coins);
+  if (!breadth.allowShort) {
+    console.log(`[MarketBreadth] extreme bearish breadth (${(breadth.bearRatio * 100).toFixed(1)}% short, n=${breadth.total}) -> gating new short signals (squeeze protection)`);
+  }
+  if (!breadth.allowLong) {
+    console.log(`[MarketBreadth] extreme bullish breadth (${(breadth.bullRatio * 100).toFixed(1)}% long, n=${breadth.total}) -> gating new long signals (exhaustion protection)`);
+  }
+
   const open = await pg(`${TABLE}?select=symbol,market,direction&status=eq.open&limit=500`);
   const alreadyOpen = new Set((open || []).map(r => `${r.symbol}:${r.market}:${r.direction}`));
 
   const rows = coins
     .filter(c => c.score >= Journal.MIN_SCORE)
+    .filter(c => {
+      const dir = (c.setup && c.setup.direction) || c.direction;
+      if (dir === -1 && !breadth.allowShort) return false;
+      if (dir === 1 && !breadth.allowLong) return false;
+      return true;
+    })
     .filter(c => !c.setup || !c.setup.direction ||
       !alreadyOpen.has(`${c.rawSymbol}:${c.market}:${c.setup.direction}`))
     .map(c => rowFor(c, barTime))
@@ -276,32 +290,40 @@ async function resolveOpen(scannedCandles) {
     const targetR = Math.abs(+sig.target - +sig.entry) / risk;
     const a = Journal.realisedR(window, sig.direction, +sig.entry, risk, Journal.PLAN_A, targetR);
     const b = Journal.realisedR(window, sig.direction, +sig.entry, risk, Journal.PLAN_B, targetR);
+    const c = Journal.realisedR(window, sig.direction, +sig.entry, risk, Journal.PLAN_C, targetR);
 
     // Half-walked paths are left open: banking a mark-to-market number as
     // though it were a finished result is how a journal starts flattering
     // itself.
     if (!complete && a.reason === 'timeout') continue;
 
-    const tp = Journal.tpTouches(window, sig.direction, +sig.entry, risk, targetR);
+    const tp = Journal.tpTouches(window, sig.direction, +sig.entry, risk, targetR, sig.bar_time);
     const targetDist = Math.abs(+sig.target - +sig.entry);
     const mae = Journal.maeMfe(window, sig.direction, +sig.entry, risk, targetDist);
+    const resolvedBarTime = window[window.length - 1].t;
+    const durationMin = (sig.bar_time && resolvedBarTime && resolvedBarTime >= sig.bar_time)
+      ? Math.round((resolvedBarTime - sig.bar_time) / 60000)
+      : window.length * 5;
     const pathData = window.map(bar => [bar.t, bar.o, bar.h, bar.l, bar.c]);
     await pg(`${TABLE}?id=eq.${sig.id}&status=eq.open`, {
       method: 'PATCH',
       body: JSON.stringify({
         status: 'resolved',
         resolved_at: new Date().toISOString(),
-        resolved_bar_time: window[window.length - 1].t,
+        resolved_bar_time: resolvedBarTime,
         outcome_a: +a.r.toFixed(4),
         outcome_b: +b.r.toFixed(4),
+        outcome_c: +c.r.toFixed(4),
         exit_reason: a.reason,
         tp1_hit: tp.tp1, tp2_hit: tp.tp2, tp3_hit: tp.tp3,
+        tp1_time_min: tp.tp1_min, tp2_time_min: tp.tp2_min, tp3_time_min: tp.tp3_min,
+        duration_min: durationMin,
         mae_r: +mae.maeR.toFixed(4), mfe_r: +mae.mfeR.toFixed(4),
         path: pathData
       }),
       headers: { Prefer: 'return=minimal' }
     });
-    console.log(`  = ${sig.symbol} ${sig.market} ${a.reason} A=${a.r.toFixed(3)}R B=${b.r.toFixed(3)}R`);
+    console.log(`  = ${sig.symbol} ${sig.market} ${a.reason} A=${a.r.toFixed(3)}R B=${b.r.toFixed(3)}R C=${c.r.toFixed(3)}R`);
     resolved++;
   }
   return resolved + expired;

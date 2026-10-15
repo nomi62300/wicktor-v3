@@ -278,7 +278,31 @@ const Scoring = (() => {
       stopFrom: stopSource
     });
     let gated = false;
-    if (rr && !rr.viable) { raw = Math.min(raw, NO_RR_CAP); gated = true; }
+    let gateReason = null;
+    if (rr && !rr.viable) {
+      raw = Math.min(raw, NO_RR_CAP);
+      gated = true;
+      gateReason = 'no structural level to stop against';
+    }
+
+    // Higher-Timeframe (1H) RSI Exhaustion Filter:
+    // Protects against selling into oversold bottoms or buying into overbought tops.
+    // Gating caps the setup score so it cannot trigger an EXCELLENT trade into an exhaustion zone.
+    const h1Snap = tfSnapshots[mode.context];
+    const h1Rsi = h1Snap ? h1Snap.rsi : null;
+    if (h1Rsi != null && !(extras && extras.noH1RsiFilter)) {
+      const h1RsiMax = (extras && extras.h1RsiMax != null) ? extras.h1RsiMax : 70;
+      const h1RsiMin = (extras && extras.h1RsiMin != null) ? extras.h1RsiMin : 30;
+      if (direction === -1 && h1Rsi <= h1RsiMin) {
+        raw = Math.min(raw, NO_RR_CAP);
+        gated = true;
+        gateReason = gateReason ? `${gateReason}; 1H RSI exhausted` : `1H RSI exhausted (${h1Rsi.toFixed(0)} <= ${h1RsiMin}, oversold short trap)`;
+      } else if (direction === 1 && h1Rsi >= h1RsiMax) {
+        raw = Math.min(raw, NO_RR_CAP);
+        gated = true;
+        gateReason = gateReason ? `${gateReason}; 1H RSI exhausted` : `1H RSI exhausted (${h1Rsi.toFixed(0)} >= ${h1RsiMax}, overbought long trap)`;
+      }
+    }
 
     return {
       score: Math.max(0, Math.min(100, Math.round(raw))),
@@ -292,7 +316,7 @@ const Scoring = (() => {
       },
       riskReward: rr,
       gated,
-      reason: gated ? 'no structural level to stop against' : null
+      reason: gated ? (gateReason || 'gated') : null
     };
   }
 

@@ -40,6 +40,53 @@ const SignalJournal = (() => {
   const PLAN_A = [[1 / 3, 1 / 3, 0], [2 / 3, 1 / 3, 1 / 3], [1, 1 / 3, null]];
   const PLAN_B = [[1, 1, null]];
 
+  // PLAN_C: Dynamic Trailing Stop & Tighter Exit
+  // 1/3 out at TP1 (1/3 of target, ~1R), stop moves to breakeven (0R).
+  // Once TP1 is achieved, stop dynamically trails at a distance of 0.5R behind
+  // running peak favorable excursion of completed bars, locking in open profits.
+  // Another 1/3 out at TP2 (2/3 of target), trailing stop floor rises to at least TP1 (1/3 target).
+  // Final 1/3 rides to TP3 (1.0 target) or trail stop.
+  // Maximum holding window is 48 bars (4 hours) instead of 96 bars (8 hours).
+  const PLAN_C = {
+    rungs: [[1 / 3, 1 / 3, 0], [2 / 3, 1 / 3, 1 / 3], [1, 1 / 3, null]],
+    trailAfterTp: 1,
+    trailDistR: 0.5,
+    maxBars: 48
+  };
+
+  /**
+   * Computes market breadth ratio from scored coins.
+   * Returns { total, bullish, bearish, bullRatio, bearRatio, allowLong, allowShort }
+   * If bearRatio >= threshold (extreme one-sided short bias), new shorts are suppressed (high squeeze risk).
+   * If bullRatio >= threshold (extreme one-sided long bias), new longs are suppressed (exhaustion risk).
+   */
+  function computeMarketBreadth(coins, threshold = 0.85) {
+    if (!coins || coins.length < 10) {
+      return { total: coins ? coins.length : 0, bullish: 0, bearish: 0, bullRatio: 0.5, bearRatio: 0.5, allowLong: true, allowShort: true };
+    }
+    let bullish = 0, bearish = 0;
+    for (const c of coins) {
+      const dir = (c.setup && c.setup.direction) || c.bias || (c.direction > 0 ? 1 : c.direction < 0 ? -1 : 0);
+      if (dir === 1) bullish++;
+      else if (dir === -1) bearish++;
+    }
+    const total = bullish + bearish;
+    if (total === 0) {
+      return { total: 0, bullish: 0, bearish: 0, bullRatio: 0.5, bearRatio: 0.5, allowLong: true, allowShort: true };
+    }
+    const bullRatio = bullish / total;
+    const bearRatio = bearish / total;
+    return {
+      total,
+      bullish,
+      bearish,
+      bullRatio,
+      bearRatio,
+      allowLong: bullRatio < threshold,
+      allowShort: bearRatio < threshold
+    };
+  }
+
   function client() {
     // Auth owns the Supabase client and already degrades gracefully when the
     // CDN is unavailable (audit F4), so this inherits that rather than
@@ -61,17 +108,37 @@ const SignalJournal = (() => {
     // only so older rows, logged while the target was a fixed 3R multiple,
     // still resolve against the geometry they were created with.
     const tR = targetR || 3;
+    const isPlanObj = plan && !Array.isArray(plan) && plan.rungs;
+    const rungs = isPlanObj ? plan.rungs : plan;
+    const maxBars = (isPlanObj && plan.maxBars) ? plan.maxBars : bars.length;
+    const effectiveBars = bars.slice(0, maxBars);
+
     let stopR = -1, remaining = 1, realised = 0, rung = 0, reason = 'timeout';
-    for (const b of bars) {
+    let maxFavR = 0;
+    let isTrailing = false;
+
+    for (let idx = 0; idx < effectiveBars.length; idx++) {
+      const b = effectiveBars[idx];
+
+      // Update trail from PRIOR bars peak if trailing is active
+      if (isTrailing && isPlanObj && plan.trailDistR != null) {
+        const trR = maxFavR - plan.trailDistR;
+        if (trR > stopR) stopR = trR;
+      }
+
       const stopPx = entry + direction * stopR * risk;
       const stopHit = direction === 1 ? b.l <= stopPx : b.h >= stopPx;
       if (stopHit) {
         realised += remaining * stopR;
-        return { r: realised, reason: stopR >= 0 ? 'breakeven' : 'stop' };
+        return {
+          r: realised,
+          reason: stopR > 0 ? 'trail' : (stopR >= 0 ? 'breakeven' : 'stop')
+        };
       }
-      while (rung < plan.length) {
-        const [frac0fTarget, frac, newStop] = plan[rung];
-        const mult = frac0fTarget * tR;
+
+      while (rung < rungs.length) {
+        const [fracOfTarget, frac, newStop] = rungs[rung];
+        const mult = fracOfTarget * tR;
         const tp = entry + direction * mult * risk;
         const hit = direction === 1 ? b.h >= tp : b.l <= tp;
         if (!hit) break;
@@ -79,11 +146,26 @@ const SignalJournal = (() => {
         realised += take * mult;
         remaining -= take;
         rung++;
-        if (newStop != null) stopR = newStop * tR;
+
+        if (newStop != null) {
+          const minStop = newStop * tR;
+          if (minStop > stopR) stopR = minStop;
+        }
+
+        // Activate trailing after the specified rung (e.g. after TP1)
+        if (isPlanObj && plan.trailAfterTp != null && rung >= plan.trailAfterTp) {
+          isTrailing = true;
+        }
+
         if (remaining <= 1e-9) return { r: realised, reason: 'target' };
       }
+
+      const favPx = direction === 1 ? b.h : b.l;
+      const barFavR = (direction * (favPx - entry)) / risk;
+      if (barFavR > maxFavR) maxFavR = barFavR;
     }
-    const last = bars[bars.length - 1];
+
+    const last = effectiveBars[effectiveBars.length - 1];
     return {
       r: realised + remaining * ((direction * (last.c - entry)) / risk),
       reason
@@ -179,10 +261,20 @@ const SignalJournal = (() => {
       alreadyOpen = new Set((data || []).map(r => `${r.symbol}:${r.market}:${r.direction}`));
     } catch (e) { console.warn('[SignalJournal] open-check threw', e); return 0; }
 
+    const breadth = computeMarketBreadth(coins);
+    if (!breadth.allowShort) {
+      console.warn(`[SignalJournal] Extreme bearish breadth (${(breadth.bearRatio * 100).toFixed(1)}% short) -> gating new short signals.`);
+    }
+    if (!breadth.allowLong) {
+      console.warn(`[SignalJournal] Extreme bullish breadth (${(breadth.bullRatio * 100).toFixed(1)}% long) -> gating new long signals.`);
+    }
+
     const rows = [];
     for (const c of coins) {
       const s = c.setup;
       if (!s || !s.direction || c.score < MIN_SCORE) continue;
+      if (s.direction === -1 && !breadth.allowShort) continue;
+      if (s.direction === 1 && !breadth.allowLong) continue;
       const rr = s.riskReward;
       if (!rr || !rr.stop || !rr.target) continue;
       if (alreadyOpen.has(`${c.rawSymbol}:${c.market}:${s.direction}`)) continue;
@@ -284,6 +376,7 @@ const SignalJournal = (() => {
       const targetR = Math.abs(sig.target - sig.entry) / risk;
       const a = realisedR(window, sig.direction, sig.entry, risk, PLAN_A, targetR);
       const b = realisedR(window, sig.direction, sig.entry, risk, PLAN_B, targetR);
+      const c = realisedR(window, sig.direction, sig.entry, risk, PLAN_C, targetR);
       // Leave it open unless the trade actually finished or the horizon
       // elapsed — a half-walked path would bank a mark-to-market number as
       // though it were a result.
@@ -307,6 +400,7 @@ const SignalJournal = (() => {
           resolved_bar_time: resolvedBarTime,
           outcome_a: +a.r.toFixed(4),
           outcome_b: +b.r.toFixed(4),
+          outcome_c: +c.r.toFixed(4),
           exit_reason: a.reason,
           tp1_hit: tp.tp1, tp2_hit: tp.tp2, tp3_hit: tp.tp3,
           tp1_time_min: tp.tp1_min, tp2_time_min: tp.tp2_min, tp3_time_min: tp.tp3_min,
@@ -351,7 +445,7 @@ const SignalJournal = (() => {
     if (!client()) return null;
     try {
       const data = await fetchAllResolved(
-        'outcome_a,outcome_b,score,context_regime,trigger_name,risk_pct,direction');
+        'outcome_a,outcome_b,outcome_c,score,context_regime,trigger_name,risk_pct,direction');
       if (!data.length) return null;
       const mean = xs => xs.length ? xs.reduce((s, v) => s + v, 0) / xs.length : null;
       const stat = key => {
@@ -370,6 +464,7 @@ const SignalJournal = (() => {
       return {
         planA: stat('outcome_a'),
         planB: stat('outcome_b'),
+        planC: stat('outcome_c'),
         medianRiskPct: (() => {
           const v = data.map(d => d.risk_pct).filter(x => x != null).sort((x, y) => x - y);
           return v.length ? v[Math.floor(v.length / 2)] : null;
@@ -378,7 +473,7 @@ const SignalJournal = (() => {
     } catch (e) { console.warn('[SignalJournal] summary threw', e); return null; }
   }
 
-  return { logFromScan, resolveOpen, summary, realisedR, tpTouches, maeMfe, MIN_SCORE, HOLD_BARS, PLAN_A, PLAN_B };
+  return { logFromScan, resolveOpen, summary, realisedR, tpTouches, maeMfe, computeMarketBreadth, MIN_SCORE, HOLD_BARS, PLAN_A, PLAN_B, PLAN_C };
 })();
 
 if (typeof module !== 'undefined') module.exports = SignalJournal;

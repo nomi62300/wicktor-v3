@@ -135,6 +135,7 @@
 
     const a = stat(resolved, 'outcome_a');
     const b = stat(resolved, 'outcome_b');
+    const c = stat(resolved, 'outcome_c');
 
     // TP-hit rate and completion time metrics
     const tracked = resolved.filter(r => Date.parse(r.resolved_at) >= TP_TRACKING_SINCE);
@@ -162,6 +163,10 @@
       tile('Balanced R · A', fmtR(a.balanced), rColor(a.balanced)) +
       tile('Mean R · B', fmtR(b.mean), rColor(b.mean)) +
       tile('Balanced R · B', fmtR(b.balanced), rColor(b.balanced)) +
+      tile('Win rate · C', c.winPct != null ? c.winPct.toFixed(0) + '%' : '--',
+        c.winPct != null && c.winPct >= 50 ? 'var(--green-text)' : 'var(--red-text)') +
+      tile('Mean R · C', fmtR(c.mean), rColor(c.mean)) +
+      tile('Balanced R · C', fmtR(c.balanced), rColor(c.balanced)) +
       tile('TP1 Hit', tracked.length ? tpRate('tp1_hit').toFixed(0) + '% (n=' + tracked.length + ')' : '--') +
       tile('TP2 Hit', tracked.length ? tpRate('tp2_hit').toFixed(0) + '%' : '--') +
       tile('TP3 Hit', tracked.length ? tpRate('tp3_hit').toFixed(0) + '%' : '--') +
@@ -335,6 +340,7 @@
         <td>${statusCell(r)}</td>
         <td class="mono" style="color:${rColor(r.outcome_a)}">${fmtR(r.outcome_a)}</td>
         <td class="mono" style="color:${rColor(r.outcome_b)}">${fmtR(r.outcome_b)}</td>
+        <td class="mono" style="color:${rColor(r.outcome_c)}">${fmtR(r.outcome_c)}</td>
         <td style="color:var(--text3);font-size:11px;white-space:nowrap;">${esc(new Date(r.created_at).toLocaleString())}</td>
       </tr>`;
     }).join('');
@@ -346,7 +352,7 @@
             <th>Coin</th><th>Side</th><th>Score</th><th>Trigger</th><th>Regime</th>
             <th>Entry</th><th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>TP Touches</th><th>Duration</th>
             <th>Mark</th><th>PnL</th><th>% to Target</th>
-            <th>1R</th><th>Status</th><th>Plan A</th><th>Plan B</th><th>Logged</th>
+            <th>1R</th><th>Status</th><th>Plan A</th><th>Plan B</th><th>Plan C</th><th>Logged</th>
           </tr></thead>
           <tbody>${body}</tbody>
         </table>
@@ -380,7 +386,7 @@
       const [listRows, statsRows] = await Promise.all([
         fetch(`${REST}?select=*&order=created_at.desc&limit=${LIST_LIMIT}`, { headers })
           .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); }),
-        fetchAllRows(`${REST}?select=direction,status,outcome_a,outcome_b,tp1_hit,tp2_hit,tp3_hit,tp1_time_min,tp2_time_min,tp3_time_min,duration_min,bar_time,resolved_bar_time,resolved_at`, headers)
+        fetchAllRows(`${REST}?select=direction,status,outcome_a,outcome_b,outcome_c,tp1_hit,tp2_hit,tp3_hit,tp1_time_min,tp2_time_min,tp3_time_min,duration_min,bar_time,resolved_bar_time,resolved_at`, headers)
       ]);
       state.rows = listRows;
       state.statsRows = statsRows;

@@ -699,6 +699,45 @@ test('journal: only EXCELLENT is journalled', () => {
   assert.strictEqual(SignalJournal.MIN_SCORE, 80);
 });
 
+test('journal: plan C trails stop after TP1 and locks in profit', () => {
+  // Long, entry 100, risk 10, target 130 (3R). TP1 is 110 (1R).
+  // Bar 1: hits TP1 (h=112), books 1/3 at 1R = +0.333R, stop moves to breakeven (100).
+  // Bar 2: pushes to 118 (+1.8R favorable excursion). Trail stop updates to 1.8 - 0.5 = 1.3R (price 113).
+  // Bar 3: drops to 112 (below trail stop 113). Stops out at 1.3R on remaining 2/3 size.
+  // Realised: 1/3 * 1.0 + 2/3 * 1.3 = 0.3333 + 0.8667 = 1.2000R!
+  const bars = [jbar(112, 100), jbar(118, 108), jbar(114, 110)];
+  const c = runPlan(bars, SignalJournal.PLAN_C);
+  assert.strictEqual(c.reason, 'trail');
+  assert.ok(Math.abs(c.r - 1.2) < 1e-9, `expected 1.2R from dynamic trail, got ${c.r}`);
+
+  // Compare to Plan A: Plan A stop was at breakeven (100), so on bar 3 it did not stop out and holds to timeout
+  const a = runPlan(bars, SignalJournal.PLAN_A);
+  assert.strictEqual(a.reason, 'timeout');
+});
+
+test('journal: market breadth suppresses signals under extreme directional bias', () => {
+  const coins90Short = Array.from({ length: 100 }, (_, i) => ({
+    rawSymbol: `COIN${i}`,
+    market: 'PERP',
+    bias: i < 90 ? -1 : 1,
+    setup: { direction: i < 90 ? -1 : 1 }
+  }));
+  const breadth = SignalJournal.computeMarketBreadth(coins90Short);
+  assert.strictEqual(breadth.bearRatio, 0.9);
+  assert.strictEqual(breadth.allowShort, false);
+  assert.strictEqual(breadth.allowLong, true);
+
+  const coinsBalanced = Array.from({ length: 100 }, (_, i) => ({
+    rawSymbol: `COIN${i}`,
+    market: 'PERP',
+    bias: i < 50 ? -1 : 1,
+    setup: { direction: i < 50 ? -1 : 1 }
+  }));
+  const bBalanced = SignalJournal.computeMarketBreadth(coinsBalanced);
+  assert.strictEqual(bBalanced.allowShort, true);
+  assert.strictEqual(bBalanced.allowLong, true);
+});
+
 test('journal: tpTouches records completion elapsed minutes for each TP', () => {
   const entryTime = 1700000000000;
   // entry 100, risk 10, targetR 3 -> TP1 = 110, TP2 = 120, TP3 = 130
@@ -829,6 +868,37 @@ test('C4: a setup with no structural level to stop against is capped', () => {
   assert.strictEqual(noStructure.gated, true);
   assert.ok(noStructure.score <= 45, 'falling back to an ATR stop caps the score');
   assert.ok(withStructure.score > noStructure.score);
+});
+
+test('C4: 1H RSI exhaustion caps setup score (oversold short trap & overbought long trap)', () => {
+  // Short setup with 1H RSI deeply oversold (e.g. 24 <= 30) -> gated!
+  const oversoldShort = Scoring.scoreSetup(
+    [c4Snap({ rsi: 24, lineOrder: -1, levelsAbove: [105] }),
+     c4Snap({ rsi: 28, lineOrder: -1, levelsAbove: [102] }),
+     c4Snap({ triggers: [TRIG('stochCrossFromExtreme', -1)] })],
+    { score: 60, items: [] }, emptyArm, emptyArm);
+  assert.strictEqual(oversoldShort.gated, true);
+  assert.ok(oversoldShort.score <= 45, `expected capped score <= 45, got ${oversoldShort.score}`);
+  assert.ok(oversoldShort.reason.includes('1H RSI exhausted'), `expected reason to mention 1H RSI exhaustion, got ${oversoldShort.reason}`);
+
+  // Long setup with 1H RSI deeply overbought (e.g. 78 >= 70) -> gated!
+  const overboughtLong = Scoring.scoreSetup(
+    [c4Snap({ rsi: 78, lineOrder: 1, levelsBelow: [95] }),
+     c4Snap({ rsi: 72, lineOrder: 1, levelsBelow: [98] }),
+     c4Snap({ triggers: [TRIG('stochCrossFromExtreme', 1)] })],
+    { score: 60, items: [] }, emptyArm, emptyArm);
+  assert.strictEqual(overboughtLong.gated, true);
+  assert.ok(overboughtLong.score <= 45, `expected capped score <= 45, got ${overboughtLong.score}`);
+  assert.ok(overboughtLong.reason.includes('1H RSI exhausted'), `expected reason to mention 1H RSI exhaustion, got ${overboughtLong.reason}`);
+
+  // Healthy setup with 1H RSI 50 -> not gated by RSI
+  const healthyLong = Scoring.scoreSetup(
+    [c4Snap({ rsi: 50, lineOrder: 1, levelsBelow: [95] }),
+     c4Snap({ rsi: 65, lineOrder: 1, levelsBelow: [98] }),
+     c4Snap({ triggers: [TRIG('stochCrossFromExtreme', 1)] })],
+    { score: 60, items: [] }, emptyArm, emptyArm);
+  assert.strictEqual(healthyLong.gated, false);
+  assert.ok(healthyLong.score > 50, `expected healthy score > 50, got ${healthyLong.score}`);
 });
 
 test('v3: the stop rides the local confirm timeframe structure, not the wide 1H context', () => {

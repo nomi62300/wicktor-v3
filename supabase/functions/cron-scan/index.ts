@@ -351,6 +351,15 @@ function rowFor(coin: any, barTime: number) {
 async function logSignals(coins: any[], log: string[]) {
   const barTime = Math.floor(Date.now() / BAR_MS) * BAR_MS;
 
+  // Compute market breadth across scanned universe
+  const breadth = SignalJournal.computeMarketBreadth(coins);
+  if (!breadth.allowShort) {
+    log.push(`[MarketBreadth] extreme bearish breadth (${(breadth.bearRatio * 100).toFixed(1)}% short, n=${breadth.total}) -> gating new short signals (squeeze protection)`);
+  }
+  if (!breadth.allowLong) {
+    log.push(`[MarketBreadth] extreme bullish breadth (${(breadth.bullRatio * 100).toFixed(1)}% long, n=${breadth.total}) -> gating new long signals (exhaustion protection)`);
+  }
+
   // Skip a symbol that already has an open row for the same
   // market+direction — one position per symbol until it resolves or
   // times out. See the matching note in js/signals.js's logFromScan().
@@ -359,6 +368,12 @@ async function logSignals(coins: any[], log: string[]) {
 
   const rows = coins
     .filter(c => c.score >= SignalJournal.MIN_SCORE)
+    .filter(c => {
+      const dir = (c.setup && c.setup.direction) || c.direction;
+      if (dir === -1 && !breadth.allowShort) return false;
+      if (dir === 1 && !breadth.allowLong) return false;
+      return true;
+    })
     .filter(c => !c.setup || !c.setup.direction ||
       !alreadyOpen.has(`${c.rawSymbol}:${c.market}:${c.setup.direction}`))
     .map(c => rowFor(c, barTime))
@@ -417,6 +432,7 @@ async function resolveOpen(host: string, scannedCandles: Record<string, any>, lo
     const targetR = Math.abs(+sig.target - +sig.entry) / risk;
     const a = SignalJournal.realisedR(window, sig.direction, +sig.entry, risk, SignalJournal.PLAN_A, targetR);
     const b = SignalJournal.realisedR(window, sig.direction, +sig.entry, risk, SignalJournal.PLAN_B, targetR);
+    const c = SignalJournal.realisedR(window, sig.direction, +sig.entry, risk, SignalJournal.PLAN_C, targetR);
 
     if (!complete && a.reason === 'timeout') continue;
 
@@ -438,6 +454,7 @@ async function resolveOpen(host: string, scannedCandles: Record<string, any>, lo
         resolved_bar_time: resolvedBarTime,
         outcome_a: +a.r.toFixed(4),
         outcome_b: +b.r.toFixed(4),
+        outcome_c: +c.r.toFixed(4),
         exit_reason: a.reason,
         tp1_hit: tp.tp1, tp2_hit: tp.tp2, tp3_hit: tp.tp3,
         tp1_time_min: tp.tp1_min, tp2_time_min: tp.tp2_min, tp3_time_min: tp.tp3_min,
@@ -447,7 +464,7 @@ async function resolveOpen(host: string, scannedCandles: Record<string, any>, lo
       }),
       headers: { Prefer: 'return=minimal' }
     });
-    log.push(`= ${sig.symbol} ${sig.market} ${a.reason} A=${a.r.toFixed(3)}R B=${b.r.toFixed(3)}R`);
+    log.push(`= ${sig.symbol} ${sig.market} ${a.reason} A=${a.r.toFixed(3)}R B=${b.r.toFixed(3)}R C=${c.r.toFixed(3)}R`);
     resolved++;
   }
   return resolved + expired;

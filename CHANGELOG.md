@@ -4,6 +4,36 @@ All notable changes to Wicktor are documented in this file, in the
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. This
 project uses [Semantic Versioning](https://semver.org/).
 
+## [v3.2.5] - Market Breadth Squeeze Gate, 1H RSI Exhaustion Filter & Plan C Dynamic Trailing Exit
+
+### Added & Improved
+- **Higher-Timeframe 1H RSI Exhaustion Gating (`js/scoring.js`):**
+  - Gated setups entering into momentum exhaustion:
+    - Short setup when 1H RSI $\le 30$ (oversold bottom trap).
+    - Long setup when 1H RSI $\ge 70$ (overbought top trap).
+  - Caps setup score $\le 45$ (AVOID band) with reason `"1H RSI exhausted (RSI: xx) -> potential squeeze/exhaustion trap"`.
+  - Configurable via `extras.h1RsiMin`, `extras.h1RsiMax`, `extras.noH1RsiFilter`.
+- **Market Breadth Filter (`js/signals.js`, `supabase/functions/cron-scan/index.ts`, `tools/cron-scan.js`):**
+  - Added `SignalJournal.computeMarketBreadth(coins, threshold = 0.85)`:
+    - When $\ge 85\%$ of the scanned universe is short (extreme bearish saturation), all new short signals are suppressed to prevent entering at cycle bottoms before market-wide short squeezes.
+    - When $\ge 85\%$ of the scanned universe is long, all new long signals are suppressed.
+- **Plan C Dynamic Trailing Stop & Tighter Horizon (`js/signals.js`):**
+  - Added `SignalJournal.PLAN_C`:
+    - Takes 1/3 at TP1 (+1R) and advances stop to breakeven (0R).
+    - Dynamically trails remaining position at 0.5R behind peak favorable excursion of completed bars.
+    - Takes 1/3 at TP2 (+2R) with floor ratcheted to at least TP1 (+1/3 target).
+    - Exits at tighter 48-bar (4h) holding window instead of 96 bars (8h).
+  - Backfilled all 1,605 historical resolved signals with `outcome_c`.
+- **Signal Journal UI & Stats (`js/signals-page.js` & `signals.html`):**
+  - Added Plan C summary tiles: `Win rate · C`, `Mean R · C`, `Balanced R · C`.
+  - Added dedicated `Plan C` column to the signals table.
+  - Updated explanation header in `signals.html` and bumped script version to `?v=3.2.5`.
+- **Database Schema Migration (`supabase/migrations/20261015230000_plan_c.sql`):**
+  - Added `outcome_c numeric` to `signal_journal` on Tokyo Supabase (`laqytygibnlpdohouxaq`).
+- **Edge Function Redeployment:**
+  - Deployed updated `cron-scan` Edge Function to Tokyo Supabase (`laqytygibnlpdohouxaq`).
+  - All 143 unit tests passing in `tests/indicators.test.js`.
+
 ## [v3.2.4] - Alligator-Derived Structural Trend & Simplified Card Time Ago
 
 ### Changed
