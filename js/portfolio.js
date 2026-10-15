@@ -362,15 +362,196 @@
     const currentDailyDd = Math.max(0, todayStartCap - currentEquity) / todayStartCap;
     if (currentDailyDd > maxDailyDdEncountered) maxDailyDdEncountered = currentDailyDd;
 
-    const dailyBufferDollars = Math.max(0, (todayStartCap * dailyLimit) - Math.max(0, todayStartCap - currentEquity));
-    const overallBufferDollars = Math.max(0, (startingCapital * overallLimit) - Math.max(0, peakCapital - currentEquity));
+    const dailyLimitDollars = todayStartCap * dailyLimit;
+    const currentDailyLoss = Math.max(0, todayStartCap - currentEquity);
+    const dailyBufferDollars = Math.max(0, dailyLimitDollars - currentDailyLoss);
+    const dailyUsedPct = Math.min(100, (currentDailyLoss / dailyLimitDollars) * 100);
 
-    const wins = closedTrades.filter(t => t.netPnl > 0).length;
-    const losses = closedTrades.filter(t => t.netPnl < 0).length;
-    const grossProfitSum = closedTrades.filter(t => t.grossPnl > 0).reduce((s, t) => s + t.grossPnl, 0);
-    const grossLossSum = Math.abs(closedTrades.filter(t => t.grossPnl < 0).reduce((s, t) => s + t.grossPnl, 0));
+    const overallLimitDollars = startingCapital * overallLimit;
+    const currentOverallLoss = Math.max(0, peakCapital - currentEquity);
+    const overallBufferDollars = Math.max(0, overallLimitDollars - currentOverallLoss);
+    const overallUsedPct = Math.min(100, (currentOverallLoss / overallLimitDollars) * 100);
+
+    const targetProfitDollars = startingCapital * 0.08; // 8% Phase 1 target = $800
+    const targetProfitLeft = Math.max(0, targetProfitDollars - netProfit);
+    const targetProgressPct = Math.min(100, Math.max(0, (netProfit / targetProfitDollars) * 100));
+
+    // Wins and Losses metrics
+    const wins = closedTrades.filter(t => t.netPnl > 0);
+    const losses = closedTrades.filter(t => t.netPnl < 0);
+    const grossProfitSum = wins.reduce((s, t) => s + t.grossPnl, 0);
+    const grossLossSum = Math.abs(losses.reduce((s, t) => s + t.grossPnl, 0));
     const profitFactor = grossLossSum ? grossProfitSum / grossLossSum : (grossProfitSum ? 99.9 : 1.0);
     const totalFeesPaid = closedTrades.reduce((s, t) => s + t.fee, 0);
+
+    const avgWin = wins.length ? wins.reduce((s, t) => s + t.netPnl, 0) / wins.length : 0;
+    const avgLoss = losses.length ? losses.reduce((s, t) => s + t.netPnl, 0) / losses.length : 0;
+    const bestTrade = closedTrades.length ? closedTrades.reduce((max, t) => t.netPnl > max.netPnl ? t : max, closedTrades[0]) : null;
+    const worstTrade = closedTrades.length ? closedTrades.reduce((min, t) => t.netPnl < min.netPnl ? t : min, closedTrades[0]) : null;
+
+    // Realized R:R metrics
+    const avgRWin = wins.length ? wins.reduce((s, t) => s + Number(t.outcome_c), 0) / wins.length : 0;
+    const avgRLoss = losses.length ? Math.abs(losses.reduce((s, t) => s + Number(t.outcome_c), 0)) / losses.length : 1;
+    const avgRealizedRr = avgRLoss ? (avgRWin / avgRLoss) : avgRWin;
+
+    // Asset frequency
+    const assetCounts = {};
+    for (const t of closedTrades) {
+      const sym = t.symbol.replace(/USDT$/, '');
+      assetCounts[sym] = (assetCounts[sym] || 0) + 1;
+    }
+    let mostTradedAsset = '--';
+    let maxAssetCount = 0;
+    for (const [sym, count] of Object.entries(assetCounts)) {
+      if (count > maxAssetCount) {
+        maxAssetCount = count;
+        mostTradedAsset = `${sym} (${count})`;
+      }
+    }
+
+    // Sessions breakdown (UTC Hours)
+    const sessions = {
+      london: { name: 'London (07:00 - 13:00)', trades: 0, wins: 0, losses: 0, netPnl: 0 },
+      newyork: { name: 'New York (13:00 - 22:00)', trades: 0, wins: 0, losses: 0, netPnl: 0 },
+      asia: { name: 'Asia (00:00 - 06:00)', trades: 0, wins: 0, losses: 0, netPnl: 0 },
+      other: { name: 'Outside / Other', trades: 0, wins: 0, losses: 0, netPnl: 0 }
+    };
+
+    for (const t of closedTrades) {
+      const h = new Date(t.bar_time).getUTCHours();
+      let sess = sessions.other;
+      if (h >= 7 && h < 13) sess = sessions.london;
+      else if (h >= 13 && h < 22) sess = sessions.newyork;
+      else if (h >= 0 && h < 6) sess = sessions.asia;
+
+      sess.trades++;
+      if (t.netPnl > 0) sess.wins++;
+      else if (t.netPnl < 0) sess.losses++;
+      sess.netPnl += t.netPnl;
+    }
+
+    for (const k of Object.keys(sessions)) {
+      const s = sessions[k];
+      s.winRatePct = s.trades ? (s.wins / s.trades) * 100 : 0;
+      s.pnlPct = (s.netPnl / startingCapital) * 100;
+    }
+
+    // Weekday distribution (Monday to Sunday)
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const weekdayMap = {};
+    for (let d = 0; d < 7; d++) {
+      weekdayMap[d] = { day: dayNames[d], trades: 0, wins: 0, losses: 0, netPnl: 0 };
+    }
+    for (const t of closedTrades) {
+      const d = new Date(t.bar_time).getUTCDay();
+      weekdayMap[d].trades++;
+      if (t.netPnl > 0) weekdayMap[d].wins++;
+      else if (t.netPnl < 0) weekdayMap[d].losses++;
+      weekdayMap[d].netPnl += t.netPnl;
+    }
+    // Reorder Mon (1) to Sun (0)
+    const weekdayDistribution = [1, 2, 3, 4, 5, 6, 0].map(d => weekdayMap[d]);
+
+    // Streaks
+    let curWinStreak = 0, curLossStreak = 0;
+    let maxWinStreak = 0, maxLossStreak = 0;
+    for (const t of closedTrades) {
+      if (t.netPnl > 0) {
+        curWinStreak++;
+        curLossStreak = 0;
+        if (curWinStreak > maxWinStreak) maxWinStreak = curWinStreak;
+      } else if (t.netPnl < 0) {
+        curLossStreak++;
+        curWinStreak = 0;
+        if (curLossStreak > maxLossStreak) maxLossStreak = curLossStreak;
+      }
+    }
+
+    // Daily Streaks & Calendar metrics
+    const dailyList = Array.from(dailyLedger.values());
+    const tradingDays = dailyList.filter(d => d.tradesCount > 0);
+    const winningDays = tradingDays.filter(d => d.netPnl > 0);
+    const losingDays = tradingDays.filter(d => d.netPnl < 0);
+
+    let curWinDays = 0, curLossDays = 0;
+    let maxWinDays = 0, maxLossDays = 0;
+    for (const d of tradingDays.slice().reverse()) {
+      if (d.netPnl > 0) {
+        curWinDays++;
+        curLossDays = 0;
+        if (curWinDays > maxWinDays) maxWinDays = curWinDays;
+      } else if (d.netPnl < 0) {
+        curLossDays++;
+        curWinDays = 0;
+        if (curLossDays > maxLossDays) maxLossDays = curLossDays;
+      }
+    }
+
+    // Long vs Short statistics
+    const longs = closedTrades.filter(t => t.direction === 1);
+    const shorts = closedTrades.filter(t => t.direction === -1);
+    const longWins = longs.filter(t => t.netPnl > 0).length;
+    const shortWins = shorts.filter(t => t.netPnl > 0).length;
+
+    // Cumulative points curve for balance chart
+    let runningCap = startingCapital;
+    const curvePoints = [{ time: minTs, balance: startingCapital, netPnl: 0 }];
+    for (const t of closedTrades) {
+      runningCap += t.netPnl;
+      curvePoints.push({
+        time: t.exitTime || t.bar_time,
+        dateStr: getUtcDay(t.exitTime || t.bar_time),
+        balance: runningCap,
+        netPnl: runningCap - startingCapital
+      });
+    }
+
+    // Calendar month/week breakdown
+    const now = new Date();
+    const currentYear = now.getUTCFullYear();
+    const currentMonth = now.getUTCMonth(); // 0-indexed
+    const monthName = now.toLocaleString('en-US', { month: 'long', timeZone: 'UTC' });
+
+    // Days in current month
+    const totalDaysInMonth = new Date(Date.UTC(currentYear, currentMonth + 1, 0)).getUTCDate();
+    const calendarDays = [];
+    const weekTotals = { 1: { netPnl: 0, trades: 0 }, 2: { netPnl: 0, trades: 0 }, 3: { netPnl: 0, trades: 0 }, 4: { netPnl: 0, trades: 0 }, 5: { netPnl: 0, trades: 0 } };
+
+    for (let day = 1; day <= totalDaysInMonth; day++) {
+      const dayStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const dayDate = new Date(Date.UTC(currentYear, currentMonth, day));
+      const dayOfWeek = (dayDate.getUTCDay() + 6) % 7; // 0 = Mon, 6 = Sun
+      const weekNum = Math.min(5, Math.ceil(day / 7));
+
+      const rec = dailyLedger.get(dayStr);
+      const dayNetPnl = rec ? rec.netPnl : 0;
+      const dayTrades = rec ? rec.tradesCount : 0;
+      const dayWins = rec ? rec.wins : 0;
+      const dayLosses = rec ? rec.losses : 0;
+
+      if (rec) {
+        weekTotals[weekNum].netPnl += dayNetPnl;
+        weekTotals[weekNum].trades += dayTrades;
+      }
+
+      calendarDays.push({
+        day,
+        dayStr,
+        dayOfWeek,
+        weekNum,
+        netPnl: dayNetPnl,
+        trades: dayTrades,
+        wins: dayWins,
+        losses: dayLosses,
+        isToday: dayStr === todayStr,
+        hasData: rec != null && dayTrades > 0
+      });
+    }
+
+    // Best/Worst Week and Month
+    const weekEntries = Object.entries(weekTotals).filter(([_, w]) => w.trades > 0);
+    const bestWeek = weekEntries.length ? weekEntries.reduce((max, [k, v]) => v.netPnl > max.netPnl ? { week: k, ...v } : max, { week: weekEntries[0][0], ...weekEntries[0][1] }) : null;
+    const worstWeek = weekEntries.length ? weekEntries.reduce((min, [k, v]) => v.netPnl < min.netPnl ? { week: k, ...v } : min, { week: weekEntries[0][0], ...weekEntries[0][1] }) : null;
 
     return {
       summary: {
@@ -382,9 +563,9 @@
         totalTrades: closedTrades.length,
         activeTradesCount: activePositions.length,
         maxSlots,
-        wins,
-        losses,
-        winRatePct: closedTrades.length ? (wins / closedTrades.length) * 100 : 0,
+        wins: wins.length,
+        losses: losses.length,
+        winRatePct: closedTrades.length ? (wins.length / closedTrades.length) * 100 : 0,
         profitFactor,
         totalFeesPaid,
         maxDailyDdEncounteredPct: maxDailyDdEncountered * 100,
@@ -392,16 +573,89 @@
         dailyLimitPct: dailyLimit * 100,
         overallLimitPct: overallLimit * 100,
         dailyBufferDollars,
+        dailyLimitDollars,
+        currentDailyLoss,
+        dailyUsedPct,
         overallBufferDollars,
+        overallLimitDollars,
+        currentOverallLoss,
+        overallUsedPct,
+        targetProfitDollars,
+        targetProfitLeft,
+        targetProgressPct,
         isDailyHalted: dailyHalted || currentDailyDd >= dailyLimit,
         isAccountBreached: accountBreached || (startingCapital - currentEquity) / startingCapital >= overallLimit,
         todayNetPnl,
         todayNetPct,
         currentUtcDay: todayStr
       },
+      objectives: {
+        dailyDdLevel: todayStartCap - dailyLimitDollars,
+        dailyDdLeft: dailyBufferDollars,
+        dailyUsedPct,
+        maxDdLevel: startingCapital - overallLimitDollars,
+        maxDdLeft: overallBufferDollars,
+        maxUsedPct: overallUsedPct,
+        targetProfitLevel: startingCapital + targetProfitDollars,
+        targetProfitLeft,
+        targetProgressPct
+      },
+      stats: {
+        tradingDaysCount: tradingDays.length,
+        minTradingDays: 3,
+        mostTradedAsset,
+        avgWin,
+        avgLoss,
+        avgRWin,
+        avgRLoss,
+        avgRealizedRr,
+        profitSplit: 80,
+        accountPhase: 'Evaluation, Phase 1',
+        avgTradePnl: closedTrades.length ? netProfit / closedTrades.length : 0,
+        avgDailyPnl: tradingDays.length ? netProfit / tradingDays.length : 0,
+        avgWinDay: winningDays.length ? winningDays.reduce((s, d) => s + d.netPnl, 0) / winningDays.length : 0,
+        avgLossDay: losingDays.length ? losingDays.reduce((s, d) => s + d.netPnl, 0) / losingDays.length : 0,
+        bestTrade,
+        worstTrade,
+        maxWinStreak,
+        maxLossStreak,
+        maxWinDays,
+        maxLossDays,
+        profitableDaysPct: tradingDays.length ? (winningDays.length / tradingDays.length) * 100 : 0,
+        avgTradesPerDay: tradingDays.length ? (closedTrades.length / tradingDays.length) : 0,
+        totalVolumeUsdt: closedTrades.reduce((s, t) => s + (t.notional || 0), 0)
+      },
+      sessions,
+      weekdayDistribution,
+      longShortStats: {
+        longsCount: longs.length,
+        longWins,
+        longLosses: longs.length - longWins,
+        longWinRate: longs.length ? (longWins / longs.length) * 100 : 0,
+        longNetPnl: longs.reduce((s, t) => s + t.netPnl, 0),
+        shortsCount: shorts.length,
+        shortWins,
+        shortLosses: shorts.length - shortWins,
+        shortWinRate: shorts.length ? (shortWins / shorts.length) * 100 : 0,
+        shortNetPnl: shorts.reduce((s, t) => s + t.netPnl, 0)
+      },
+      calendar: {
+        currentYear,
+        currentMonth: currentMonth + 1,
+        monthName,
+        calendarDays,
+        weekTotals,
+        bestWeek,
+        worstWeek,
+        bestMonthNetPnl: netProfit,
+        worstMonthNetPnl: netProfit,
+        winningDaysCount: winningDays.length,
+        losingDaysCount: losingDays.length
+      },
+      curvePoints,
       activePositions,
       closedTrades: closedTrades.reverse(),
-      dailyLedger: Array.from(dailyLedger.values()).reverse()
+      dailyLedger: dailyList.reverse()
     };
   }
 

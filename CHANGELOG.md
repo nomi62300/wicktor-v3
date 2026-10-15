@@ -4,6 +4,36 @@ All notable changes to Wicktor are documented in this file, in the
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. This
 project uses [Semantic Versioning](https://semver.org/).
 
+## [v3.2.7] - Prop Firm Dashboard Architecture with 4 Specialized Sub-Tabs & Live UTC Midnight Countdown
+
+### Added & Improved
+- **Prop Firm Visual Design & Sub-Tabs (`signals.html`, `js/signals-page.js`, `css/style.css`):**
+  - Mimicked high-end prop firm user experience (FundedNext / FTMO / TradeThePool) with dedicated sub-navigation:
+    1. **Account Overview:**
+       - Live midnight UTC reset countdown banner with real-time ticking DAYS, HOURS, MINUTES, SECONDS.
+       - Trading Objectives gauges: Daily Drawdown level vs 4% limit ($400 loss buffer), Max Drawdown level vs 8% limit ($800 loss buffer), Target Profit ($800 progress bar).
+       - Visual balance & equity curve charts (interactive responsive SVG line/area charts with min/max axes and grid lines).
+       - Key account metrics: Initial Balance ($10,000), Current Balance, Current Equity, Total Net Profit ($ and %), High-water mark, and Daily Drawdown.
+    2. **Trading Overview:**
+       - Real-time Donut Chart showing Won vs Lost trades ratio and Win Rate percentage.
+       - Trading Sessions breakdown: London (07:00–13:00 UTC), New York (13:00–22:00 UTC), Asia (00:00–06:00 UTC), and Other, reporting trade count, win rate, and total profit per session.
+       - Day of Week distribution bar chart (Mon–Sun) tracking volume and profitability across the week.
+       - Trade Streak analytics: Current streak, Longest winning streak, Longest losing streak.
+       - Trading Statistics table: Profit Factor, Gross Profit, Gross Loss, Best Trade ($), Worst Trade ($), Average Win ($), Average Loss ($), Total Trades, and Win Rate.
+    3. **Trading History:**
+       - Full paginated table of all simulated prop firm trades with search filter by symbol/ticker.
+       - Detailed columns: Ticket ID (`#1001`+), Open Time, Close Time, Symbol, Direction badge (BUY / SELL), Entry Price, Exit Price, Plan C Multiple (R), Net Profit ($ and %), Holding Duration, and Exit Reason badge (`TP3 Full Winner`, `TP2 Winner`, `TP1 Breakeven`, `Dynamic Trail Hit`, `SL Hit`).
+    4. **Calendar:**
+       - Interactive monthly trading calendar grid displaying daily P&L badges with color coding (emerald green for profit, coral red for loss).
+       - Currency toggle to switch daily badges between Dollar amounts (`$`) and Percent return (`%`).
+       - Sidebar breakdown with win/loss donut gauge, profitable days count, losing days count, and daily average return.
+- **Portfolio Engine Extensions (`js/portfolio.js`):**
+  - Added session attribution (London, NY, Asia, Other) based on UTC entry timestamps.
+  - Added day of week distribution mapping.
+  - Added winning and losing streak calculations.
+  - Added SVG path generation for the Balance and Cumulative P&L curves.
+  - Added full calendar day matrix generation with date formatting and daily summary metrics.
+
 ## [v3.2.6] - 10,000 USDT Prop Portfolio Simulation Tab with Daily Midnight UTC Reset & Plan C Execution
 
 ### Added & Improved

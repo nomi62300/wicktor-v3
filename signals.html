@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Wicktor — Signal Journal & Portfolio</title>
+<title>Wicktor — Signal Journal & Prop Firm Portfolio</title>
 <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
 <link rel="stylesheet" href="css/style.css">
 </head>
@@ -15,18 +15,18 @@
     <div class="brand">
       <img src="assets/logo.svg" alt="Wicktor" class="brand-icon-img">
     </div>
-    <div style="font-family:var(--font-display);font-weight:500;font-size:16px;flex:1;">Signal Journal & Portfolio</div>
+    <div style="font-family:var(--font-display);font-weight:500;font-size:16px;flex:1;">Signal Journal & Prop Portfolio</div>
     <a href="index.html" class="btn btn-primary" style="text-decoration:none;">&larr; Back to Scanner</a>
     <button id="theme-btn" class="icon-btn" aria-label="Toggle theme"></button>
   </header>
 
-  <!-- Top View Navigation Toggle -->
+  <!-- Top View Navigation Toggle (Raw Journal vs Prop Portfolio) -->
   <div class="view-mode-bar" style="display:flex;gap:10px;margin:0 0 16px;border-bottom:1px solid var(--border);padding-bottom:12px;">
     <button id="mode-journal-btn" class="chip active" style="font-weight:600;padding:8px 16px;font-size:13px;">
       📋 Raw Signal Journal
     </button>
     <button id="mode-portfolio-btn" class="chip" style="font-weight:600;padding:8px 16px;font-size:13px;">
-      💼 $10,000 Prop Portfolio (Plan C)
+      💼 $10,000 Prop Firm Portfolio (Plan C)
     </button>
   </div>
 
@@ -56,81 +56,283 @@
     </main>
   </div>
 
-  <!-- VIEW 2: $10k Prop Portfolio -->
+  <!-- VIEW 2: Prop Firm Dashboard (Matches Images) -->
   <div id="portfolio-view" style="display:none;">
-    <div class="portfolio-banner" style="background:var(--surf);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 18px;margin-bottom:16px;">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between;">
+
+    <!-- Top Prop Firm Header Card with Live Countdown -->
+    <div class="prop-header-card">
+      <div class="prop-account-info">
+        <div class="prop-avatar">⚡</div>
         <div>
-          <div style="font-family:var(--font-display);font-size:15px;font-weight:600;margin-bottom:4px;">
-            💼 $10,000 USDT Realistic Prop Portfolio Simulation (Plan C)
+          <div class="prop-account-title">
+            <span>Account 1 — #W3-10000</span>
+            <span id="prop-account-status-badge" class="prop-badge-active">Active</span>
           </div>
-          <div style="font-size:12px;color:var(--text2);line-height:1.5;max-width:850px;">
-            Simulates a real-money trading account under strict prop-firm risk parameters:
-            <strong>4% Daily Drawdown Limit ($400)</strong> with strict <strong>Midnight (00:00 UTC) reset</strong>,
-            <strong>8% Max Overall Drawdown ($800)</strong>, executing exclusively on <strong>Plan C</strong>
-            (1/3 at TP1 + BE, 0.5R dynamic trailing stop, 1/3 at TP2, 1/3 at TP3, 4h max window).
-            Includes <strong>0.11% Bybit taker round-trip fees</strong> and realistic concurrent slot capacity.
+          <div style="font-size:12px;color:var(--text3);margin-top:2px;">
+            Evaluation, Phase 1 &middot; Simulated $10,000 USDT &middot; Plan C Trailing Stop
           </div>
         </div>
-        <div id="portfolio-rule-badges" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
       </div>
-    </div>
 
-    <!-- Portfolio Summary Metrics Strip -->
-    <section id="portfolio-summary" class="top-strip" aria-label="Portfolio summary">
-      <div class="loading-state">Loading portfolio...</div>
-    </section>
-
-    <!-- Interactive Filter & Parameter Bar -->
-    <div style="background:var(--surf2);border:1px solid var(--border);border-radius:var(--radius-md);padding:10px 14px;margin-bottom:18px;display:flex;flex-wrap:wrap;gap:16px;align-items:center;">
-      <div style="display:flex;align-items:center;gap:6px;">
-        <span style="font-size:11px;color:var(--text3);text-transform:uppercase;font-weight:600;">Quality:</span>
-        <div id="filter-score-chips" class="chip-row" style="margin:0;display:inline-flex;">
-          <button class="chip active" data-score="85">★ Top Tier (≥85)</button>
-          <button class="chip" data-score="82">High (≥82)</button>
-          <button class="chip" data-score="80">Standard (≥80)</button>
-          <button class="chip" data-score="70">All (≥70)</button>
+      <div class="prop-countdown-wrap">
+        <div class="prop-countdown-label">
+          Today's Drawdown reset in<br>
+          <span style="font-size:9px;color:var(--gold-text);font-weight:600;">(Midnight 00:00 UTC)</span>
         </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:6px;">
-        <span style="font-size:11px;color:var(--text3);text-transform:uppercase;font-weight:600;">Slots:</span>
-        <div id="filter-slots-chips" class="chip-row" style="margin:0;display:inline-flex;">
-          <button class="chip" data-slots="3">3 Slots</button>
-          <button class="chip active" data-slots="5">5 Slots</button>
-          <button class="chip" data-slots="8">8 Slots</button>
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:6px;">
-        <span style="font-size:11px;color:var(--text3);text-transform:uppercase;font-weight:600;">Risk / Trade:</span>
-        <div id="filter-risk-chips" class="chip-row" style="margin:0;display:inline-flex;">
-          <button class="chip" data-risk="0.005">0.5% ($50)</button>
-          <button class="chip active" data-risk="0.01">1.0% ($100)</button>
-          <button class="chip" data-risk="0.015">1.5% ($150)</button>
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:6px;">
-        <span style="font-size:11px;color:var(--text3);text-transform:uppercase;font-weight:600;">Leverage:</span>
-        <div id="filter-lev-chips" class="chip-row" style="margin:0;display:inline-flex;">
-          <button class="chip" data-lev="3">3x</button>
-          <button class="chip active" data-lev="5">5x</button>
-          <button class="chip" data-lev="10">10x</button>
+        <div class="prop-countdown-boxes">
+          <div class="prop-count-box"><span id="cd-days">0</span><small>DAYS</small></div>
+          <div class="prop-count-box"><span id="cd-hours">00</span><small>HOURS</small></div>
+          <div class="prop-count-box"><span id="cd-mins">00</span><small>MINUTES</small></div>
+          <div class="prop-count-box"><span id="cd-secs">00</span><small>SECONDS</small></div>
         </div>
       </div>
     </div>
 
-    <!-- Active Open Positions -->
-    <div id="portfolio-active-section" style="margin-bottom:24px;"></div>
+    <!-- Prop Firm Sub-Tabs Navigation Bar -->
+    <div class="prop-subtabs-bar">
+      <button class="prop-subtab-btn active" data-subtab="account-overview">Account Overview</button>
+      <button class="prop-subtab-btn" data-subtab="trading-overview">Trading Overview</button>
+      <button class="prop-subtab-btn" data-subtab="trading-history">Trading History</button>
+      <button class="prop-subtab-btn" data-subtab="calendar">Calendar</button>
 
-    <!-- Daily Performance Ledger (Midnight UTC Resets) -->
-    <div id="portfolio-daily-section" style="margin-bottom:24px;"></div>
+      <button id="prop-settings-toggle" class="prop-subtab-btn" style="margin-left:auto;display:flex;align-items:center;gap:6px;">
+        <span>⚙️ Simulation Parameters</span>
+      </button>
+    </div>
 
-    <!-- Closed Trades History Ledger -->
-    <div id="portfolio-closed-section"></div>
+    <!-- Simulation Parameters Drawer (Collapsible) -->
+    <div id="prop-settings-panel" style="display:none;background:var(--surf2);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px 16px;margin-bottom:18px;">
+      <div style="display:flex;flex-wrap:wrap;gap:18px;align-items:center;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:11px;color:var(--text3);text-transform:uppercase;font-weight:600;">Quality:</span>
+          <div id="filter-score-chips" class="chip-row" style="margin:0;display:inline-flex;">
+            <button class="chip active" data-score="85">★ Top Tier (≥85)</button>
+            <button class="chip" data-score="82">High (≥82)</button>
+            <button class="chip" data-score="80">Standard (≥80)</button>
+            <button class="chip" data-score="70">All (≥70)</button>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:11px;color:var(--text3);text-transform:uppercase;font-weight:600;">Slots:</span>
+          <div id="filter-slots-chips" class="chip-row" style="margin:0;display:inline-flex;">
+            <button class="chip" data-slots="3">3 Slots</button>
+            <button class="chip active" data-slots="5">5 Slots</button>
+            <button class="chip" data-slots="8">8 Slots</button>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:11px;color:var(--text3);text-transform:uppercase;font-weight:600;">Risk / Trade:</span>
+          <div id="filter-risk-chips" class="chip-row" style="margin:0;display:inline-flex;">
+            <button class="chip" data-risk="0.005">0.5% ($50)</button>
+            <button class="chip active" data-risk="0.01">1.0% ($100)</button>
+            <button class="chip" data-risk="0.015">1.5% ($150)</button>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:11px;color:var(--text3);text-transform:uppercase;font-weight:600;">Leverage:</span>
+          <div id="filter-lev-chips" class="chip-row" style="margin:0;display:inline-flex;">
+            <button class="chip" data-lev="3">3x</button>
+            <button class="chip active" data-lev="5">5x</button>
+            <button class="chip" data-lev="10">10x</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- SUB-TAB 1: Account Overview -->
+    <!-- ================================================================= -->
+    <div id="subtab-account-overview" class="prop-subtab-panel">
+      <!-- Section: Trading Objectives -->
+      <div style="font-family:var(--font-display);font-size:16px;font-weight:600;margin-bottom:12px;">Trading Objectives</div>
+      <div id="prop-objectives-grid" class="prop-grid-3">
+        <!-- Rendered by JS -->
+      </div>
+
+      <!-- Section: Trading Stats -->
+      <div style="font-family:var(--font-display);font-size:16px;font-weight:600;margin:24px 0 12px;">Trading Stats</div>
+      <div id="prop-stats-cards" class="prop-grid-4">
+        <!-- Rendered by JS: Trading Days, Most Traded Asset, Avg Win, Avg Loss -->
+      </div>
+
+      <div class="prop-grid-2" style="margin-bottom:20px;">
+        <!-- Balance / Equity Chart -->
+        <div class="prop-card" style="min-height:300px;display:flex;flex-direction:column;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <span style="font-size:13px;font-weight:600;">Balance & Equity Curve</span>
+            <div style="display:flex;gap:12px;font-size:11px;color:var(--text3);">
+              <span style="color:#38bdf8;">● Balance</span>
+              <span style="color:#10b981;">--- Target ($10,800)</span>
+              <span style="color:#e0745f;">--- Daily DD Floor</span>
+              <span style="color:#f59e0b;">--- Max DD ($9,200)</span>
+            </div>
+          </div>
+          <div id="prop-chart-container" style="flex:1;min-height:220px;position:relative;"></div>
+        </div>
+
+        <!-- Profit/Loss & Account Overview Details -->
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div class="prop-card" id="prop-pnl-card">
+            <!-- Rendered by JS -->
+          </div>
+          <div class="prop-card" id="prop-account-info-card">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Section: Trading Summary -->
+      <div style="font-family:var(--font-display);font-size:16px;font-weight:600;margin:24px 0 12px;">Trading Summary</div>
+      <div id="prop-trading-summary-grid" class="prop-grid-2">
+        <!-- Win Rate & Profit Factor Cards -->
+      </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- SUB-TAB 2: Trading Overview -->
+    <!-- ================================================================= -->
+    <div id="subtab-trading-overview" class="prop-subtab-panel" style="display:none;">
+      <!-- Row 1: KPI Cards -->
+      <div id="prop-overview-kpis" class="prop-grid-4" style="margin-bottom:20px;"></div>
+
+      <!-- Row 2: Trade Distribution & Trading Sessions -->
+      <div class="prop-grid-2" style="margin-bottom:20px;">
+        <div class="prop-card">
+          <div style="font-size:13px;font-weight:600;margin-bottom:12px;">Weekly Trade Distribution</div>
+          <div id="prop-weekday-chart" style="min-height:180px;"></div>
+        </div>
+
+        <div class="prop-card">
+          <div style="font-size:13px;font-weight:600;margin-bottom:12px;">Trading Sessions Performance</div>
+          <div id="prop-sessions-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"></div>
+        </div>
+      </div>
+
+      <!-- Row 3: Daily Cumulative PnL Area Chart -->
+      <div class="prop-card" style="margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <span style="font-size:13px;font-weight:600;">Daily Net Cumulative P&L</span>
+          <span style="font-size:11px;color:var(--text3);">Plan C Realized Performance</span>
+        </div>
+        <div id="prop-cumulative-chart" style="min-height:200px;"></div>
+      </div>
+
+      <!-- Row 4: Statistics Grid -->
+      <div id="prop-detailed-stats-grid" class="prop-grid-4" style="margin-bottom:20px;"></div>
+
+      <!-- Row 5: Net Daily PnL Bar Chart -->
+      <div class="prop-card" style="margin-bottom:20px;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:12px;">Net Daily P&L ($)</div>
+        <div id="prop-daily-bars-chart" style="min-height:150px;"></div>
+      </div>
+
+      <!-- Row 6: Long / Short & Recent Performance -->
+      <div class="prop-grid-2" style="margin-bottom:20px;">
+        <div class="prop-card" id="prop-longshort-card"></div>
+        <div class="prop-card" id="prop-recent-snippet-card"></div>
+      </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- SUB-TAB 3: Trading History -->
+    <!-- ================================================================= -->
+    <div id="subtab-trading-history" class="prop-subtab-panel" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
+        <div style="font-family:var(--font-display);font-size:16px;font-weight:600;">Trading History</div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <input type="text" id="prop-history-search" placeholder="Search symbol..." style="background:var(--surf);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 12px;font-size:12px;color:var(--text);width:160px;">
+          <span id="prop-history-count-badge" style="font-size:12px;color:var(--text3);"></span>
+        </div>
+      </div>
+
+      <div class="prop-card" style="padding:0;overflow:hidden;margin-bottom:16px;">
+        <div style="overflow-x:auto;">
+          <table class="flows-table" id="prop-history-table">
+            <thead>
+              <tr>
+                <th>Ticket</th>
+                <th>Open Time (UTC)</th>
+                <th>Open Price</th>
+                <th>Close Time (UTC)</th>
+                <th>Close Price</th>
+                <th>Side</th>
+                <th>Symbol</th>
+                <th>Volume (USDT)</th>
+                <th>Profit / P&L</th>
+                <th>Exit Reason</th>
+              </tr>
+            </thead>
+            <tbody id="prop-history-tbody">
+              <!-- Rendered by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Pagination Controls -->
+      <div id="prop-history-pagination" style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text2);">
+      </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- SUB-TAB 4: Calendar -->
+    <!-- ================================================================= -->
+    <div id="subtab-calendar" class="prop-subtab-panel" style="display:none;">
+      <!-- Row 1: Best/Worst Month & Week Cards -->
+      <div id="prop-cal-top-cards" class="prop-grid-4" style="margin-bottom:16px;"></div>
+
+      <!-- Row 2: Streaks & Averages -->
+      <div id="prop-cal-streaks-cards" class="prop-grid-4" style="margin-bottom:20px;"></div>
+
+      <!-- Calendar Main Layout (Grid + Right Stats) -->
+      <div style="display:grid;grid-template-columns:1fr 280px;gap:20px;align-items:start;">
+        <!-- Calendar Grid Card -->
+        <div class="prop-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <span id="prop-calendar-month-title" style="font-family:var(--font-display);font-size:16px;font-weight:600;">October 2026</span>
+            </div>
+            <div id="prop-cal-unit-toggle" class="chip-row" style="margin:0;">
+              <button class="chip active" data-unit="dollar">$</button>
+              <button class="chip" data-unit="pct">%</button>
+            </div>
+          </div>
+
+          <!-- Calendar Header Row -->
+          <div class="prop-cal-header-row">
+            <div class="prop-cal-header-cell">Mon</div>
+            <div class="prop-cal-header-cell">Tue</div>
+            <div class="prop-cal-header-cell">Wed</div>
+            <div class="prop-cal-header-cell">Thu</div>
+            <div class="prop-cal-header-cell">Fri</div>
+            <div class="prop-cal-header-cell">Sat</div>
+            <div class="prop-cal-header-cell">Sun</div>
+          </div>
+
+          <!-- Calendar Day Cells Grid -->
+          <div id="prop-calendar-grid" class="prop-cal-grid">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <!-- Right Side: Donut / Summary -->
+        <div class="prop-card" style="display:flex;flex-direction:column;gap:16px;">
+          <div style="font-size:13px;font-weight:600;">Calendar Win Breakdown</div>
+          <div id="prop-cal-donut-wrap" style="display:flex;flex-direction:column;align-items:center;min-height:160px;justify-content:center;">
+            <!-- SVG Donut Chart -->
+          </div>
+          <div id="prop-cal-sidebar-stats" style="display:flex;flex-direction:column;gap:10px;">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
 </div>
 
-<script src="js/portfolio.js?v=3.2.6"></script>
-<script src="js/signals-page.js?v=3.2.6"></script>
+<script src="js/portfolio.js?v=3.2.7"></script>
+<script src="js/signals-page.js?v=3.2.7"></script>
 </body>
 </html>
