@@ -14,6 +14,7 @@ global.Indicators = Indicators;
 const Scoring = require('../js/scoring');
 const SignalJournal = require('../js/signals');
 const CoinView = require('../js/coinview');
+const PortfolioSimulator = require('../js/portfolio');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -773,6 +774,49 @@ test('coinview: tfChipData derives trend from Alligator lineOrder and computes p
   // Without snap, fallback uses price direction
   const chipFallback = CoinView.tfChipData('5M', candles);
   assert.strictEqual(chipFallback.trend, 'up');
+});
+
+test('portfolio: 10k prop simulation enforces 4% daily drawdown, midnight UTC reset, and 8% overall DD limit', () => {
+  const day1 = Date.parse('2026-10-14T08:00:00Z');
+  const day2 = Date.parse('2026-10-15T02:00:00Z');
+
+  const signals = [
+    // Day 1: 4 losses that trip daily 4% DD
+    { id: 1, symbol: 'A', market: 'PERP', direction: 1, score: 90, entry: 100, stop: 98, target: 106, risk_pct: 2, bar_time: day1, resolved_bar_time: day1 + 1000, status: 'resolved', outcome_c: -1.0 },
+    { id: 2, symbol: 'B', market: 'PERP', direction: 1, score: 90, entry: 100, stop: 98, target: 106, risk_pct: 2, bar_time: day1 + 2000, resolved_bar_time: day1 + 3000, status: 'resolved', outcome_c: -1.0 },
+    { id: 3, symbol: 'C', market: 'PERP', direction: 1, score: 90, entry: 100, stop: 98, target: 106, risk_pct: 2, bar_time: day1 + 4000, resolved_bar_time: day1 + 5000, status: 'resolved', outcome_c: -1.0 },
+    { id: 4, symbol: 'D', market: 'PERP', direction: 1, score: 90, entry: 100, stop: 98, target: 106, risk_pct: 2, bar_time: day1 + 6000, resolved_bar_time: day1 + 7000, status: 'resolved', outcome_c: -1.0 },
+    // Trade 5 on Day 1: should be skipped because 4% daily DD limit tripped
+    { id: 5, symbol: 'E', market: 'PERP', direction: 1, score: 90, entry: 100, stop: 98, target: 106, risk_pct: 2, bar_time: day1 + 8000, resolved_bar_time: day1 + 9000, status: 'resolved', outcome_c: 1.0 },
+    // Trade 6 on Day 2 (after midnight UTC): should be taken
+    { id: 6, symbol: 'F', market: 'PERP', direction: 1, score: 90, entry: 100, stop: 98, target: 106, risk_pct: 2, bar_time: day2, resolved_bar_time: day2 + 1000, status: 'resolved', outcome_c: 2.0 },
+  ];
+
+  const res = PortfolioSimulator.simulate(signals, { minScore: 80, maxConcurrentSlots: 5, riskPctPerTrade: 0.01 });
+  // Exactly 5 trades taken: 4 on Day 1, trade 5 halted, trade 6 taken on Day 2 after midnight UTC reset
+  assert.strictEqual(res.summary.totalTrades, 5);
+  assert.strictEqual(res.summary.wins, 1);
+  assert.strictEqual(res.summary.losses, 4);
+  assert.ok(res.summary.totalFeesPaid > 0, 'fees should be deducted');
+  assert.strictEqual(res.summary.dailyLimitPct, 4);
+  assert.strictEqual(res.summary.overallLimitPct, 8);
+  assert.strictEqual(res.summary.isAccountBreached, false);
+});
+
+test('portfolio: top score priority selects highest score setups and respects concurrent slot limits', () => {
+  const t0 = Date.parse('2026-10-15T12:00:00Z');
+  // 4 signals arrive at exact same bar_time, but slot limit is 2
+  const signals = [
+    { id: 10, symbol: 'LOW', market: 'PERP', direction: 1, score: 81, entry: 100, stop: 98, target: 106, risk_pct: 2, bar_time: t0, resolved_bar_time: t0 + 3600000, status: 'resolved', outcome_c: 1.0 },
+    { id: 11, symbol: 'TOP1', market: 'PERP', direction: 1, score: 92, entry: 100, stop: 98, target: 106, risk_pct: 2, bar_time: t0, resolved_bar_time: t0 + 3600000, status: 'resolved', outcome_c: 2.0 },
+    { id: 12, symbol: 'MED', market: 'PERP', direction: 1, score: 84, entry: 100, stop: 98, target: 106, risk_pct: 2, bar_time: t0, resolved_bar_time: t0 + 3600000, status: 'resolved', outcome_c: 1.0 },
+    { id: 13, symbol: 'TOP2', market: 'PERP', direction: 1, score: 89, entry: 100, stop: 98, target: 106, risk_pct: 2, bar_time: t0, resolved_bar_time: t0 + 3600000, status: 'resolved', outcome_c: 1.5 },
+  ];
+
+  const res = PortfolioSimulator.simulate(signals, { minScore: 80, maxConcurrentSlots: 2, riskPctPerTrade: 0.01 });
+  assert.strictEqual(res.summary.totalTrades, 2);
+  const takenSymbols = res.closedTrades.map(t => t.symbol).sort();
+  assert.deepStrictEqual(takenSymbols, ['TOP1', 'TOP2']);
 });
 
 // ---------------------------------------------------------------------------

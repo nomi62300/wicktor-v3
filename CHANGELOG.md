@@ -4,6 +4,31 @@ All notable changes to Wicktor are documented in this file, in the
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. This
 project uses [Semantic Versioning](https://semver.org/).
 
+## [v3.2.6] - 10,000 USDT Prop Portfolio Simulation Tab with Daily Midnight UTC Reset & Plan C Execution
+
+### Added & Improved
+- **Dedicated Prop Portfolio Simulation Tab (`signals.html` & `js/signals-page.js`):**
+  - Added interactive segmented mode switcher to easily toggle between **Raw Signal Journal** (all 1,600+ unfiltered logged signals) and **10,000 USDT Prop Portfolio** (realistic simulated trading account).
+  - Deep-linkable via `signals.html#portfolio` or `signals.html?tab=portfolio`, and directly linked from the scanner settings drawer in `index.html`.
+- **Event-Driven Portfolio Simulation Engine (`js/portfolio.js`):**
+  - **Account Sizing:** Initial capital of **$10,000 USDT**.
+  - **4% Daily Drawdown Limit ($400):** Strictly resets every **Midnight UTC (00:00:00 UTC)**. Tracks daily starting equity, current day's realized + unrealized P&L, and trips an automated daily circuit breaker if losses hit 4%, halting new trades until the next UTC midnight.
+  - **8% Max Overall Drawdown Limit ($800):** Enforces hard capital preservation with an account floor of **$9,200 USDT**.
+  - **Plan C Trade Execution:** Exclusively executes using Plan C (scale out 1/3 at TP1 + move SL to breakeven, dynamic 0.5R trailing stop behind closed bar highs/lows, 1/3 at TP2 with floor at TP1, 1/3 at TP3, 4h max duration).
+  - **Realistic Friction:** Deducts **0.11% Bybit USDT Perpetual Taker Fees** round-trip (0.055% entry + 0.055% exit) from every single trade.
+  - **Capacity & Selection:** Enforces concurrent position capacity (default: 5 concurrent slots). When multiple signals fire in the same candle window, prioritizes candidates by **highest composite score first**.
+- **Interactive Simulation Controls Bar:**
+  - Dynamic filters for Quality Score (`★ Top Tier ≥85`, `High ≥82`, `Standard ≥80`, `All ≥70`), Concurrent Slots (`3`, `5`, `8`), Risk Per Trade (`0.5%`, `1.0%`, `1.5%`), and Leverage (`3x`, `5x`, `10x`).
+  - Top Tier signals (Score $\ge 85$) with 5 slots yield **+5.4% net ROI (+$539.91)** in 24 hours with a **64.7% win rate**, **2.31 profit factor**, and **0.00% daily DD**.
+- **Active Open Positions Realtime Table:**
+  - Displays currently running portfolio positions with live Bybit mark prices, unrealized net P&L ($ and R), and dynamic Plan C trailing stop levels (`Initial SL`, `SL @ BE`, `Trail TP1 Ratchet`).
+- **Daily Performance Breakdown Ledger:**
+  - Chronological daily accounting showing UTC Day, Starting Equity, Trades Count, Wins/Losses, Gross P&L, Bybit Fees, Daily Net P&L ($ and %), Daily Max DD, and Daily Status (`Active`, `Completed`, `Halted`).
+- **Closed Trades History Ledger:**
+  - Complete history of all executed portfolio trades with entry/exit prices, duration, realized Plan C R-multiple, gross P&L, fees, net P&L, exit reason, and balance curve.
+- **Unit Testing:**
+  - Added unit test suite in `tests/indicators.test.js` verifying the 4% daily drawdown circuit breaker, midnight UTC reset, 8% overall drawdown ceiling, score priority selection, and slot constraints (all 145/145 tests passing).
+
 ## [v3.2.5] - Market Breadth Squeeze Gate, 1H RSI Exhaustion Filter & Plan C Dynamic Trailing Exit
 
 ### Added & Improved

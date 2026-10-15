@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Wicktor — Signal Journal</title>
+<title>Wicktor — Signal Journal & Portfolio</title>
 <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
 <link rel="stylesheet" href="css/style.css">
 </head>
@@ -15,36 +15,122 @@
     <div class="brand">
       <img src="assets/logo.svg" alt="Wicktor" class="brand-icon-img">
     </div>
-    <div style="font-family:var(--font-display);font-weight:500;font-size:16px;flex:1;">Signal Journal</div>
+    <div style="font-family:var(--font-display);font-weight:500;font-size:16px;flex:1;">Signal Journal & Portfolio</div>
     <a href="index.html" class="btn btn-primary" style="text-decoration:none;">&larr; Back to Scanner</a>
     <button id="theme-btn" class="icon-btn" aria-label="Toggle theme"></button>
   </header>
 
-  <p class="settings-hint" style="margin:0 0 14px;max-width:760px;">
-    Every EXCELLENT-band signal the scanner has logged, resolved automatically against the
-    candle path that actually followed it. Entry/SL are the model's real numbers; TP1-3 are
-    a third of the target, two-thirds, and the full target (~4% move), shown as levels rather
-    than just an R-multiple. Three exit plans are scored from the same signals:
-    <strong>A</strong> takes a third off at each TP and moves the stop to breakeven after TP1;
-    <strong>B</strong> holds full size to TP3;
-    <strong>C</strong> takes a third at TP1 (stop to breakeven), dynamically trails the remaining 2/3 at 0.5R behind peak favorable excursion, banks another third at TP2, and exits on a tighter 4-hour window.
-    Nothing here is hand-marked — entry, stop and target are fixed at signal time and never edited.
-  </p>
+  <!-- Top View Navigation Toggle -->
+  <div class="view-mode-bar" style="display:flex;gap:10px;margin:0 0 16px;border-bottom:1px solid var(--border);padding-bottom:12px;">
+    <button id="mode-journal-btn" class="chip active" style="font-weight:600;padding:8px 16px;font-size:13px;">
+      📋 Raw Signal Journal
+    </button>
+    <button id="mode-portfolio-btn" class="chip" style="font-weight:600;padding:8px 16px;font-size:13px;">
+      💼 $10,000 Prop Portfolio (Plan C)
+    </button>
+  </div>
 
-  <section id="summary" class="top-strip" aria-label="Journal summary">
-    <div class="loading-state">Loading...</div>
-  </section>
+  <!-- VIEW 1: Raw Signal Journal -->
+  <div id="journal-view">
+    <p class="settings-hint" style="margin:0 0 14px;max-width:760px;">
+      Every EXCELLENT-band signal the scanner has logged, resolved automatically against the
+      candle path that actually followed it. Entry/SL are the model's real numbers; TP1-3 are
+      a third of the target, two-thirds, and the full target (~4% move), shown as levels rather
+      than just an R-multiple. Three exit plans are scored from the same signals:
+      <strong>A</strong> takes a third off at each TP and moves the stop to breakeven after TP1;
+      <strong>B</strong> holds full size to TP3;
+      <strong>C</strong> takes a third at TP1 (stop to breakeven), dynamically trails the remaining 2/3 at 0.5R behind peak favorable excursion, banks another third at TP2, and exits on a tighter 4-hour window.
+      Nothing here is hand-marked — entry, stop and target are fixed at signal time and never edited.
+    </p>
 
-  <div id="tabs" class="chip-row" aria-label="Filter by direction"></div>
+    <section id="summary" class="top-strip" aria-label="Journal summary">
+      <div class="loading-state">Loading...</div>
+    </section>
 
-  <p id="table-note" class="settings-hint" style="margin:0 0 10px;"></p>
+    <div id="tabs" class="chip-row" aria-label="Filter by direction"></div>
 
-  <main id="list" aria-label="Logged signals">
-    <div class="loading-state">Loading...</div>
-  </main>
+    <p id="table-note" class="settings-hint" style="margin:0 0 10px;"></p>
+
+    <main id="list" aria-label="Logged signals">
+      <div class="loading-state">Loading...</div>
+    </main>
+  </div>
+
+  <!-- VIEW 2: $10k Prop Portfolio -->
+  <div id="portfolio-view" style="display:none;">
+    <div class="portfolio-banner" style="background:var(--surf);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 18px;margin-bottom:16px;">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between;">
+        <div>
+          <div style="font-family:var(--font-display);font-size:15px;font-weight:600;margin-bottom:4px;">
+            💼 $10,000 USDT Realistic Prop Portfolio Simulation (Plan C)
+          </div>
+          <div style="font-size:12px;color:var(--text2);line-height:1.5;max-width:850px;">
+            Simulates a real-money trading account under strict prop-firm risk parameters:
+            <strong>4% Daily Drawdown Limit ($400)</strong> with strict <strong>Midnight (00:00 UTC) reset</strong>,
+            <strong>8% Max Overall Drawdown ($800)</strong>, executing exclusively on <strong>Plan C</strong>
+            (1/3 at TP1 + BE, 0.5R dynamic trailing stop, 1/3 at TP2, 1/3 at TP3, 4h max window).
+            Includes <strong>0.11% Bybit taker round-trip fees</strong> and realistic concurrent slot capacity.
+          </div>
+        </div>
+        <div id="portfolio-rule-badges" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+      </div>
+    </div>
+
+    <!-- Portfolio Summary Metrics Strip -->
+    <section id="portfolio-summary" class="top-strip" aria-label="Portfolio summary">
+      <div class="loading-state">Loading portfolio...</div>
+    </section>
+
+    <!-- Interactive Filter & Parameter Bar -->
+    <div style="background:var(--surf2);border:1px solid var(--border);border-radius:var(--radius-md);padding:10px 14px;margin-bottom:18px;display:flex;flex-wrap:wrap;gap:16px;align-items:center;">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:11px;color:var(--text3);text-transform:uppercase;font-weight:600;">Quality:</span>
+        <div id="filter-score-chips" class="chip-row" style="margin:0;display:inline-flex;">
+          <button class="chip active" data-score="85">★ Top Tier (≥85)</button>
+          <button class="chip" data-score="82">High (≥82)</button>
+          <button class="chip" data-score="80">Standard (≥80)</button>
+          <button class="chip" data-score="70">All (≥70)</button>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:11px;color:var(--text3);text-transform:uppercase;font-weight:600;">Slots:</span>
+        <div id="filter-slots-chips" class="chip-row" style="margin:0;display:inline-flex;">
+          <button class="chip" data-slots="3">3 Slots</button>
+          <button class="chip active" data-slots="5">5 Slots</button>
+          <button class="chip" data-slots="8">8 Slots</button>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:11px;color:var(--text3);text-transform:uppercase;font-weight:600;">Risk / Trade:</span>
+        <div id="filter-risk-chips" class="chip-row" style="margin:0;display:inline-flex;">
+          <button class="chip" data-risk="0.005">0.5% ($50)</button>
+          <button class="chip active" data-risk="0.01">1.0% ($100)</button>
+          <button class="chip" data-risk="0.015">1.5% ($150)</button>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:11px;color:var(--text3);text-transform:uppercase;font-weight:600;">Leverage:</span>
+        <div id="filter-lev-chips" class="chip-row" style="margin:0;display:inline-flex;">
+          <button class="chip" data-lev="3">3x</button>
+          <button class="chip active" data-lev="5">5x</button>
+          <button class="chip" data-lev="10">10x</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Open Positions -->
+    <div id="portfolio-active-section" style="margin-bottom:24px;"></div>
+
+    <!-- Daily Performance Ledger (Midnight UTC Resets) -->
+    <div id="portfolio-daily-section" style="margin-bottom:24px;"></div>
+
+    <!-- Closed Trades History Ledger -->
+    <div id="portfolio-closed-section"></div>
+  </div>
 
 </div>
 
-<script src="js/signals-page.js?v=3.2.5"></script>
+<script src="js/portfolio.js?v=3.2.6"></script>
+<script src="js/signals-page.js?v=3.2.6"></script>
 </body>
 </html>
