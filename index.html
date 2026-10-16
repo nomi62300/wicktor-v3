@@ -90,6 +90,17 @@
         <span class="filter-row-sep"></span>
         <button class="chip chip--wm" data-group="wm" data-filter="wm" id="wm-filter-chip" title="Wicktor Momentum Filter: 1H+4H Velocity & RSI Momentum (Long: 1h>0, 4h>0, RSI≥60 | Short: 1h<0, 4h<0, RSI≤40)">⚡ WM Filter</button>
       </div>
+      <!-- Row 1c: WM Momentum Sub-Filters (revealed when WM Filter is active) -->
+      <div class="filter-row wm-subfilter-row" id="wm-subfilter-row" style="display:none;" role="group" aria-label="WM Momentum Sub-Filters">
+        <span class="filter-row-label" style="color:#22d3ee;font-weight:600;">WM Modes</span>
+        <button class="chip chip--wm-sub active" data-wm-sub="all" title="Matches any active WM momentum criteria">Combined (All)</button>
+        <button class="chip chip--wm-sub" data-wm-sub="standard" title="Orion 1H & 4H Velocity + CMC 1H RSI Heatmap">1H+4H Velocity</button>
+        <button class="chip chip--wm-sub" data-wm-sub="largeCap" title="Large-Cap Trend Expansion: Mcap ≥ $500M & 1H > 0.5% (+14.7% Backtested ROI)">⭐ Large-Cap Trend</button>
+        <button class="chip chip--wm-sub" data-wm-sub="allTf" title="+Ve & Vol: All-TF Positive Momentum (15M > 0.25%, 1H > 0%, 4H > 0%)">+Ve &amp; Vol (All-TF)</button>
+        <button class="chip chip--wm-sub" data-wm-sub="impulse15m" title="15M Impulse: Breakout expansion ≥ 2%">15M Impulse (&gt;2%)</button>
+        <button class="chip chip--wm-sub" data-wm-sub="smallCap" title="Small-Cap Pump: Mcap < $500M & 15M ≥ 1.5%">Small-Cap Pump</button>
+        <button class="chip chip--wm-sub" data-wm-sub="spike5m" title="5M Scalp Spike: Fast ignition candle ≥ 1.5%">5M Scalp Spike</button>
+      </div>
       <!-- Row 2: Band + Side groups -->
       <div class="filter-row" aria-label="Band and side filters">
         <span class="filter-row-label">Band</span>
@@ -318,14 +329,14 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.js.iife.js"></script>
 <!-- ?v= forces a stale cache to drop old geometry; bump on any scoring change -->
-<script src="js/indicators.js?v=3.3.0"></script>
-<script src="js/scoring.js?v=3.3.0"></script>
-<script src="js/api.js?v=3.3.0"></script>
-<script src="js/outcomes.js?v=3.3.0"></script>
-<script src="js/auth.js?v=3.3.0"></script>
-<script src="js/signals.js?v=3.3.0"></script>
-<script src="js/coinview.js?v=3.3.0"></script>
-<script src="js/render.js?v=3.3.0"></script>
-<script src="js/app.js?v=3.3.0"></script>
+<script src="js/indicators.js?v=3.3.2"></script>
+<script src="js/scoring.js?v=3.3.2"></script>
+<script src="js/api.js?v=3.3.2"></script>
+<script src="js/outcomes.js?v=3.3.2"></script>
+<script src="js/auth.js?v=3.3.2"></script>
+<script src="js/signals.js?v=3.3.2"></script>
+<script src="js/coinview.js?v=3.3.2"></script>
+<script src="js/render.js?v=3.3.2"></script>
+<script src="js/app.js?v=3.3.2"></script>
 </body>
 </html>

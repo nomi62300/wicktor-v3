@@ -129,14 +129,45 @@ const CoinView = (() => {
 
     const chg4h = tfChips[0] ? tfChips[0].pct : 0;
     const chg1h = tfChips[1] ? tfChips[1].pct : 0;
+    const chg15m = tfChips[2] ? tfChips[2].pct : 0;
+    const chg5m = tfChips[3] ? tfChips[3].pct : 0;
     const rsi1h = Array.isArray(result.rsiByTf) ? result.rsiByTf[0] : 50;
 
-    let wmFilter = false;
-    if (tradeDir === 1) {
-      wmFilter = chg1h > 0 && chg4h > 0 && rsi1h >= 60;
-    } else if (tradeDir === -1) {
-      wmFilter = chg1h < 0 && chg4h < 0 && rsi1h <= 40;
-    }
+    const isLong = tradeDir === 1;
+    const isShort = tradeDir === -1;
+    const mcapVal = mcapRaw == null ? 0 : Number(mcapRaw);
+
+    // 1. Standard: 1H & 4H Velocity + 1H RSI Heatmap
+    const wmStandard = isLong ? (chg1h > 0 && chg4h > 0 && rsi1h >= 60)
+                              : (chg1h < 0 && chg4h < 0 && rsi1h <= 40);
+
+    // 2. +Ve & Vol: All-TF Alignment (15M > 0.25%, 1H > 0%, 4H > 0%)
+    const wmAllTf = isLong ? (chg15m > 0.25 && chg1h > 0 && chg4h > 0)
+                           : (chg15m < -0.25 && chg1h < 0 && chg4h < 0);
+
+    // 3. 15M Impulse: >= 2% Expansion
+    const wm15mImpulse = isLong ? (chg15m >= 2.0) : (chg15m <= -2.0);
+
+    // 4. Small-Cap Pump: Mcap < $500M & 15M >= 1.5%
+    const wmSmallCap = (mcapVal > 0 && mcapVal < 500e6) && (isLong ? chg15m >= 1.5 : chg15m <= -1.5);
+
+    // 5. Large-Cap Trend Expansion: Mcap >= $500M & 1H >= 0.5%
+    const wmLargeCap = (mcapVal >= 500e6) && (isLong ? chg1h >= 0.5 : chg1h <= -0.5);
+
+    // 6. 5M Scalp Spike: 5M >= 1.5%
+    const wm5mSpike = isLong ? (chg5m >= 1.5) : (chg5m <= -1.5);
+
+    const wmSub = {
+      standard: wmStandard,
+      allTf: wmAllTf,
+      impulse15m: wm15mImpulse,
+      smallCap: wmSmallCap,
+      largeCap: wmLargeCap,
+      spike5m: wm5mSpike,
+      combined: wmStandard || wmAllTf || wm15mImpulse || wmSmallCap || wmLargeCap || wm5mSpike
+    };
+
+    const wmFilter = wmStandard;
 
     return {
       symbol: displaySymbol,
@@ -151,6 +182,7 @@ const CoinView = (() => {
       mcapRaw: mcapRaw == null ? null : mcapRaw,
       volatility: classifyVolatility(candles && candles.h1),
       wmFilter,
+      wmSub,
       unlock: null,
       tfChips,
       resistance: formatPrice(result.tfSnapshots[0].resistance),

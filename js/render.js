@@ -107,7 +107,27 @@ const Render = (() => {
     })();
 
     if (!isWm) return '';
-    return `<span class="wm-filter-badge" title="Wicktor Momentum Filter Verified (1h & 4h Velocity + RSI Heatmap)">⚡ WM</span>`;
+
+    let tag = '⚡ WM';
+    const modes = [];
+    if (coin.wmSub) {
+      if (coin.wmSub.largeCap) modes.push('Large-Cap Trend');
+      if (coin.wmSub.allTf) modes.push('+Ve & Vol All-TF');
+      if (coin.wmSub.impulse15m) modes.push('15M Impulse');
+      if (coin.wmSub.smallCap) modes.push('Small-Cap Pump');
+      if (coin.wmSub.standard) modes.push('1H/4H Velocity');
+      if (coin.wmSub.spike5m) modes.push('5M Spike');
+      if (coin.wmSub.largeCap) tag = '⚡ WM · Large';
+      else if (coin.wmSub.allTf) tag = '⚡ WM · All-TF';
+      else if (coin.wmSub.impulse15m) tag = '⚡ WM · 15M';
+      else if (coin.wmSub.smallCap) tag = '⚡ WM · Pump';
+    }
+
+    const titleStr = modes.length
+      ? `Wicktor Momentum Filter (${modes.join(' · ')})`
+      : 'Wicktor Momentum Filter Verified';
+
+    return `<span class="wm-filter-badge" title="${titleStr}">${tag}</span>`;
   }
 
   function sideBadgeHtml(side) {

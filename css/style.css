@@ -477,6 +477,36 @@ input:focus-visible {
   gap: 2px;
 }
 
+/* WM Sub-filters bar */
+.wm-subfilter-row {
+  background: rgba(6, 182, 212, 0.04);
+  border: 1px dashed rgba(6, 182, 212, 0.25);
+  border-radius: 8px;
+  padding: 6px 12px;
+  margin: 6px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.chip--wm-sub {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-color: rgba(6, 182, 212, 0.25);
+  color: var(--text2);
+}
+.chip--wm-sub:hover {
+  border-color: rgba(6, 182, 212, 0.5);
+  color: #22d3ee;
+}
+.chip--wm-sub.active {
+  background: rgba(6, 182, 212, 0.16);
+  border-color: #06b6d4;
+  color: #22d3ee;
+  font-weight: 600;
+  box-shadow: 0 0 6px rgba(6, 182, 212, 0.25);
+}
+
 /* Side chips */
 .chip--buy.active  { color: var(--green-text); background: rgba(79,174,142,0.12); border-color: var(--green); }
 .chip--sell.active { color: var(--red-text);   background: rgba(224,116,95,0.12);  border-color: var(--red); }

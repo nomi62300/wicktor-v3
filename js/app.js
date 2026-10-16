@@ -93,6 +93,7 @@
       mcap:    new Set(), // 'micro' | 'small' | 'mid' | 'large'
       wm:      new Set()  // 'wm' — Wicktor Momentum Filter
     },
+    activeWmSub: 'all',   // 'all' | 'standard' | 'largeCap' | 'allTf' | 'impulse15m' | 'smallCap' | 'spike5m'
     searchQuery: '',
     topStripData: {},
     flowsData: [],   // CoinGecko-backed, Flows tab only (lazy)
@@ -683,7 +684,13 @@
     // wm group — Wicktor Momentum Filter
     const wm = state.activeFilters.wm;
     if (wm && wm.has('wm')) {
-      list = list.filter(c => (c.wmFilter != null ? c.wmFilter : passesWmFilter(c)));
+      const subMode = state.activeWmSub || 'all';
+      list = list.filter(c => {
+        if (!c) return false;
+        if (subMode === 'all') return c.wmFilter != null ? c.wmFilter : passesWmFilter(c);
+        if (c.wmSub && c.wmSub[subMode] != null) return c.wmSub[subMode];
+        return passesWmSubFilter(c, subMode);
+      });
     }
 
     // search — always AND
@@ -706,6 +713,47 @@
     if (dir === 1) return chg1h > 0 && chg4h > 0 && rsi1h >= 60;
     if (dir === -1) return chg1h < 0 && chg4h < 0 && rsi1h <= 40;
     return false;
+  }
+
+  function passesWmSubFilter(c, mode) {
+    if (!c) return false;
+    if (c.wmSub && c.wmSub[mode] != null) return c.wmSub[mode];
+    const chip4h = c.tfChips && c.tfChips.find(t => t.label === '4H');
+    const chip1h = c.tfChips && c.tfChips.find(t => t.label === '1H');
+    const chip15m = c.tfChips && c.tfChips.find(t => t.label === '15M');
+    const chip5m = c.tfChips && c.tfChips.find(t => t.label === '5M');
+    const chg4h = chip4h ? chip4h.pct : 0;
+    const chg1h = chip1h ? chip1h.pct : 0;
+    const chg15m = chip15m ? chip15m.pct : 0;
+    const chg5m = chip5m ? chip5m.pct : 0;
+    const rsi1h = Array.isArray(c.rsiByTf) ? c.rsiByTf[0] : 50;
+    const dir = c.setupDirection || (c.side === 'Long' || c.side === 'Buy' ? 1 : -1);
+    const isLong = dir === 1;
+    const mcapVal = c.mcapRaw == null ? 0 : Number(c.mcapRaw);
+
+    switch (mode) {
+      case 'standard':
+        return isLong ? (chg1h > 0 && chg4h > 0 && rsi1h >= 60) : (chg1h < 0 && chg4h < 0 && rsi1h <= 40);
+      case 'allTf':
+        return isLong ? (chg15m > 0.25 && chg1h > 0 && chg4h > 0) : (chg15m < -0.25 && chg1h < 0 && chg4h < 0);
+      case 'impulse15m':
+        return isLong ? (chg15m >= 2.0) : (chg15m <= -2.0);
+      case 'smallCap':
+        return (mcapVal > 0 && mcapVal < 500e6) && (isLong ? chg15m >= 1.5 : chg15m <= -1.5);
+      case 'largeCap':
+        return (mcapVal >= 500e6) && (isLong ? chg1h >= 0.5 : chg1h <= -0.5);
+      case 'spike5m':
+        return isLong ? (chg5m >= 1.5) : (chg5m <= -1.5);
+      case 'combined':
+        return (isLong ? (chg1h > 0 && chg4h > 0 && rsi1h >= 60) : (chg1h < 0 && chg4h < 0 && rsi1h <= 40)) ||
+               (isLong ? (chg15m > 0.25 && chg1h > 0 && chg4h > 0) : (chg15m < -0.25 && chg1h < 0 && chg4h < 0)) ||
+               (isLong ? (chg15m >= 2.0) : (chg15m <= -2.0)) ||
+               ((mcapVal > 0 && mcapVal < 500e6) && (isLong ? chg15m >= 1.5 : chg15m <= -1.5)) ||
+               ((mcapVal >= 500e6) && (isLong ? chg1h >= 0.5 : chg1h <= -0.5)) ||
+               (isLong ? (chg5m >= 1.5) : (chg5m <= -1.5));
+      default:
+        return c.wmFilter != null ? c.wmFilter : passesWmFilter(c);
+    }
   }
 
   // ---------------------------------------------------------------- Render
@@ -1011,7 +1059,8 @@
         state.searchDebounce = setTimeout(() => searchCoinLive(state.searchQuery), 350);
       }
     });
-    el.filterBar.querySelectorAll('.chip').forEach(chip => {
+    const wmSubBar = document.getElementById('wm-subfilter-row');
+    el.filterBar.querySelectorAll('.chip:not(.chip--wm-sub)').forEach(chip => {
       chip.addEventListener('click', () => {
         const group  = chip.dataset.group;
         const filter = chip.dataset.filter;
@@ -1020,13 +1069,32 @@
         if (set.has(filter)) {
           set.delete(filter);
           chip.classList.remove('active');
+          if (group === 'wm' && wmSubBar) {
+            wmSubBar.style.display = 'none';
+            state.activeWmSub = 'all';
+            wmSubBar.querySelectorAll('.chip--wm-sub').forEach(c => c.classList.toggle('active', c.dataset.wmSub === 'all'));
+          }
         } else {
           set.add(filter);
           chip.classList.add('active');
+          if (group === 'wm' && wmSubBar) {
+            wmSubBar.style.display = 'flex';
+          }
         }
         renderAll();
       });
     });
+
+    if (wmSubBar) {
+      wmSubBar.querySelectorAll('.chip--wm-sub').forEach(subChip => {
+        subChip.addEventListener('click', () => {
+          wmSubBar.querySelectorAll('.chip--wm-sub').forEach(c => c.classList.remove('active'));
+          subChip.classList.add('active');
+          state.activeWmSub = subChip.dataset.wmSub || 'all';
+          renderAll();
+        });
+      });
+    }
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') { closeModal(); closeSettings(); closeSignalJournalPanel(); }
     });
