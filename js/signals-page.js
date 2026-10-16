@@ -333,7 +333,7 @@
       const [listRows, statsRows] = await Promise.all([
         fetch(`${REST}?select=*&order=created_at.desc&limit=${LIST_LIMIT}`, { headers })
           .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); }),
-        fetchAllRows(`${REST}?select=id,symbol,market,direction,score,trigger_name,context_regime,entry,stop,target,risk_pct,status,outcome_a,outcome_b,outcome_c,exit_reason,tp1_hit,tp2_hit,tp3_hit,tp1_time_min,tp2_time_min,tp3_time_min,duration_min,bar_time,resolved_bar_time,resolved_at,created_at&order=bar_time.asc`, headers)
+        fetchAllRows(`${REST}?select=id,symbol,market,direction,score,trigger_name,context_regime,entry,stop,target,risk_pct,status,outcome_a,outcome_b,outcome_c,exit_reason,tp1_hit,tp2_hit,tp3_hit,tp1_time_min,tp2_time_min,tp3_time_min,duration_min,bar_time,resolved_bar_time,resolved_at,created_at,wm_filter&order=bar_time.asc`, headers)
       ]);
       state.rows = listRows;
       state.statsRows = statsRows;

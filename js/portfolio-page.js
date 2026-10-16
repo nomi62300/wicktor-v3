@@ -38,6 +38,7 @@
   const fmtR = v => v == null ? '--' : (Number(v) >= 0 ? '+' : '') + Number(v).toFixed(2) + 'R';
   const fmtPct = v => v == null ? '--' : (Number(v) >= 0 ? '+' : '') + Number(v).toFixed(0) + '%';
   const fmtPct2 = v => v == null ? '--' : (Number(v) >= 0 ? '+' : '') + Number(v).toFixed(2) + '%';
+  const fmtPercent = v => v == null ? '--' : (Number(v) >= 0 ? '+' : '') + Number(v).toFixed(2) + '%';
   const fmtDollar = v => v == null ? '--' : (Number(v) >= 0 ? '+$' : '-$') + Math.abs(Number(v)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtDollarPlain = v => v == null ? '--' : '$' + Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const rColor = v => v == null ? 'var(--text3)' : (Number(v) >= 0 ? 'var(--green-text)' : 'var(--red-text)');
@@ -1046,7 +1047,14 @@
 
     async function fetchCategory(category, out) {
       try {
-        const res = await fetch(`${BYBIT}/v5/market/tickers?category=${category}`);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        let res;
+        try {
+          res = await fetch(`${BYBIT}/v5/market/tickers?category=${category}`, { signal: controller.signal });
+        } finally {
+          clearTimeout(timeoutId);
+        }
         if (!res.ok) return;
         const data = await res.json();
         if (data.retCode !== 0) return;
@@ -1066,11 +1074,18 @@
     const PAGE = 1000;
     let offset = 0;
     while (true) {
-      const res = await fetch(urlBase, { headers: { ...headers, Range: `${offset}-${offset + PAGE - 1}` } });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      let res;
+      try {
+        res = await fetch(urlBase, { headers: { ...headers, Range: `${offset}-${offset + PAGE - 1}` }, signal: controller.signal });
+      } finally {
+        clearTimeout(timeoutId);
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const page = await res.json();
       rows.push(...page);
-      const total = Number((res.headers.get('content-range') || '').split('/')[1]);
+      const total = Number((res.headers && typeof res.headers.get === 'function' ? (res.headers.get('content-range') || '') : '').split('/')[1]);
       if (page.length < PAGE || (total && rows.length >= total)) break;
       offset += PAGE;
     }
@@ -1084,16 +1099,26 @@
       }
       const headers = { apikey: KEY, Authorization: `Bearer ${KEY}`, Prefer: 'count=exact' };
       const statsRows = await fetchAllRows(
-        `${REST}?select=id,symbol,market,direction,score,trigger_name,context_regime,entry,stop,target,risk_pct,status,outcome_a,outcome_b,outcome_c,exit_reason,tp1_hit,tp2_hit,tp3_hit,tp1_time_min,tp2_time_min,tp3_time_min,duration_min,bar_time,resolved_bar_time,resolved_at,created_at&order=bar_time.asc`,
+        `${REST}?select=id,symbol,market,direction,score,trigger_name,context_regime,entry,stop,target,risk_pct,status,outcome_a,outcome_b,outcome_c,exit_reason,tp1_hit,tp2_hit,tp3_hit,tp1_time_min,tp2_time_min,tp3_time_min,duration_min,bar_time,resolved_bar_time,resolved_at,created_at,wm_filter&order=bar_time.asc`,
         headers
       );
       state.statsRows = statsRows;
-      state.marks = await fetchMarkPrices(state.statsRows);
+
+      // Render immediately with historical records so UI is instant
       recalculateAndRender();
 
       if (syncStatusEl) {
         syncStatusEl.innerHTML = `<span style="color:var(--green-text);font-weight:600;">● Live</span> <span style="color:var(--text3);">(${statsRows.length.toLocaleString()} signals synced &middot; 60s realtime poll)</span>`;
       }
+
+      // Fetch live marks in background so external API latency never blocks dashboard rendering
+      fetchMarkPrices(state.statsRows).then(marks => {
+        if (marks && Object.keys(marks).length) {
+          state.marks = marks;
+          recalculateAndRender();
+        }
+      }).catch(e => console.warn('[PortfolioPage] mark price fetch skipped', e.message));
+
     } catch (e) {
       console.error('[PortfolioPage] load error', e);
       if (syncStatusEl) {
