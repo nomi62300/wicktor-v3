@@ -177,9 +177,9 @@
       A: { num: 1, name: 'Plan A (Baseline)', code: 'A', avatar: '🛡️', sub: '1R Breakeven · 2R Target · $10,000 USDT · Regular Score ≥ 85' },
       B: { num: 2, name: 'Plan B (Baseline)', code: 'B', avatar: '🎯', sub: 'Pure 3R Runner · Fixed Stop · $10,000 USDT · Regular Score ≥ 85' },
       C: { num: 3, name: 'Plan C (Baseline)', code: 'C', avatar: '⚡', sub: 'Dynamic 0.5R Trail · Scale-Out · $10,000 USDT · Regular Score ≥ 85' },
-      A_WM: { num: 4, name: 'Plan A (WM Filter)', code: 'A-WM', avatar: '🌪️', sub: '1R Breakeven · 2R Target · $10,000 USDT · Wicktor Momentum Filter' },
-      B_WM: { num: 5, name: 'Plan B (WM Filter)', code: 'B-WM', avatar: '🚀', sub: 'Pure 3R Runner · Fixed Stop · $10,000 USDT · Wicktor Momentum Filter' },
-      C_WM: { num: 6, name: 'Plan C (WM Filter)', code: 'C-WM', avatar: '💎', sub: 'Dynamic 0.5R Trail · Scale-Out · $10,000 USDT · Wicktor Momentum Filter' }
+      A_WM: { num: 4, name: 'Plan A (WM Combined)', code: 'A-WMC', avatar: '🌪️', sub: '1R Breakeven · 2R Target · $10,000 USDT · WM Combined Momentum (All Sub-Filters)' },
+      B_WM: { num: 5, name: 'Plan B (WM Combined)', code: 'B-WMC', avatar: '🚀', sub: 'Pure 3R Runner · Fixed Stop · $10,000 USDT · WM Combined Momentum (All Sub-Filters)' },
+      C_WM: { num: 6, name: 'Plan C (WM Combined)', code: 'C-WMC', avatar: '💎', sub: 'Dynamic 0.5R Trail · Scale-Out · $10,000 USDT · WM Combined Momentum (All Sub-Filters)' }
     }[planKey] || { num: 3, name: 'Plan C', code: 'C', avatar: '⚡', sub: '$10,000 USDT' };
 
     if (avatarEl) avatarEl.textContent = meta.avatar;

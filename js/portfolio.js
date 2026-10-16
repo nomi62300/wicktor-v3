@@ -211,11 +211,21 @@
       return dailyLedger.get(dateStr);
     }
 
-    const requireWm = !!opts.wmFilter;
+    const wmOpt = opts.wmFilter;
+    const requireWm = !!wmOpt;
     const validSignals = (signals || [])
       .filter(s => s && s.bar_time && (s.status === 'resolved' || s.status === 'open'))
       .filter(s => Number(s.score) >= minScore)
-      .filter(s => !requireWm || s.wm_filter === true || (s.context_regime && s.context_regime.includes('[WM]')) || (s.trigger_name && s.trigger_name.includes('[WM]')));
+      .filter(s => {
+        if (!requireWm) return true;
+        if (wmOpt === 'combined' || wmOpt === true) {
+          if (s.wm_combined != null) return s.wm_combined;
+          if (s.wmSub && s.wmSub.combined != null) return s.wmSub.combined;
+          return s.wm_filter === true || (s.context_regime && s.context_regime.includes('[WM]')) || (s.trigger_name && s.trigger_name.includes('[WM]'));
+        }
+        if (s.wmSub && s.wmSub[wmOpt] != null) return s.wmSub[wmOpt];
+        return s.wm_filter === true;
+      });
 
     if (!validSignals.length) {
       return buildEmptySimulationResult(opts);
@@ -830,9 +840,9 @@
       planA: simulate(signals, { ...options, plan: 'A', wmFilter: false }),
       planB: simulate(signals, { ...options, plan: 'B', wmFilter: false }),
       planC: simulate(signals, { ...options, plan: 'C', wmFilter: false }),
-      planA_wm: simulate(signals, { ...options, plan: 'A', wmFilter: true }),
-      planB_wm: simulate(signals, { ...options, plan: 'B', wmFilter: true }),
-      planC_wm: simulate(signals, { ...options, plan: 'C', wmFilter: true })
+      planA_wm: simulate(signals, { ...options, plan: 'A', wmFilter: 'combined' }),
+      planB_wm: simulate(signals, { ...options, plan: 'B', wmFilter: 'combined' }),
+      planC_wm: simulate(signals, { ...options, plan: 'C', wmFilter: 'combined' })
     };
   }
 
