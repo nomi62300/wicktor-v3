@@ -1016,6 +1016,8 @@
   // -------------------------------------------------------------------------
   // Data Loader
   // -------------------------------------------------------------------------
+  const syncStatusEl = document.getElementById('prop-sync-status');
+
   async function fetchAllRows(urlBase, headers) {
     const rows = [];
     const PAGE = 1000;
@@ -1034,7 +1036,10 @@
 
   async function load() {
     try {
-      const headers = { apikey: KEY, Authorization: `Bearer ${KEY}` };
+      if (syncStatusEl && state.statsRows.length === 0) {
+        syncStatusEl.innerHTML = '<span style="color:var(--gold-text)">⚡ Connecting to Supabase Tokyo...</span>';
+      }
+      const headers = { apikey: KEY, Authorization: `Bearer ${KEY}`, Prefer: 'count=exact' };
       const statsRows = await fetchAllRows(
         `${REST}?select=id,symbol,market,direction,score,trigger_name,context_regime,entry,stop,target,risk_pct,status,outcome_a,outcome_b,outcome_c,exit_reason,tp1_hit,tp2_hit,tp3_hit,tp1_time_min,tp2_time_min,tp3_time_min,duration_min,bar_time,resolved_bar_time,resolved_at,created_at&order=bar_time.asc`,
         headers
@@ -1042,8 +1047,15 @@
       state.statsRows = statsRows;
       state.marks = await fetchMarkPrices(state.statsRows);
       recalculateAndRender();
+
+      if (syncStatusEl) {
+        syncStatusEl.innerHTML = `<span style="color:var(--green-text);font-weight:600;">● Live</span> <span style="color:var(--text3);">(${statsRows.length.toLocaleString()} signals synced &middot; 60s realtime poll)</span>`;
+      }
     } catch (e) {
       console.error('[PortfolioPage] load error', e);
+      if (syncStatusEl) {
+        syncStatusEl.innerHTML = `<span style="color:var(--red-text)">⚠️ Sync error: ${esc(e.message)}</span>`;
+      }
     }
   }
 
