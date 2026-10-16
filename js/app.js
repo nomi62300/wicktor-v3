@@ -90,7 +90,8 @@
       quality: new Set(), // '3tf' | 'divergence' — ANDed with market, OR'd within itself
       band:    new Set(), // 'excellent' | 'watch' | 'avoid'
       side:    new Set(), // 'buy' | 'sell'
-      mcap:    new Set()  // 'micro' | 'small' | 'mid' | 'large'
+      mcap:    new Set(), // 'micro' | 'small' | 'mid' | 'large'
+      wm:      new Set()  // 'wm' — Wicktor Momentum Filter
     },
     searchQuery: '',
     topStripData: {},
@@ -679,12 +680,32 @@
       });
     }
 
+    // wm group — Wicktor Momentum Filter
+    const wm = state.activeFilters.wm;
+    if (wm && wm.has('wm')) {
+      list = list.filter(c => (c.wmFilter != null ? c.wmFilter : passesWmFilter(c)));
+    }
+
     // search — always AND
     if (state.searchQuery) {
       const q = state.searchQuery.toUpperCase();
       list = list.filter(c => c.symbol.toUpperCase().includes(q));
     }
     return list;
+  }
+
+  function passesWmFilter(c) {
+    if (!c) return false;
+    if (c.wmFilter != null) return c.wmFilter;
+    const chip4h = c.tfChips && c.tfChips.find(t => t.label === '4H');
+    const chip1h = c.tfChips && c.tfChips.find(t => t.label === '1H');
+    const chg4h = chip4h ? chip4h.pct : 0;
+    const chg1h = chip1h ? chip1h.pct : 0;
+    const rsi1h = Array.isArray(c.rsiByTf) ? c.rsiByTf[0] : 50;
+    const dir = c.setupDirection || (c.side === 'Long' || c.side === 'Buy' ? 1 : -1);
+    if (dir === 1) return chg1h > 0 && chg4h > 0 && rsi1h >= 60;
+    if (dir === -1) return chg1h < 0 && chg4h < 0 && rsi1h <= 40;
+    return false;
   }
 
   // ---------------------------------------------------------------- Render

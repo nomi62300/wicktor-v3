@@ -343,6 +343,7 @@ function rowFor(coin: any, barTime: number) {
     stop: rr.stop,
     target: rr.target,
     risk_pct: rr.riskPct != null ? +rr.riskPct.toFixed(4) : null,
+    wm_filter: !!coin.wmFilter,
     // @ts-ignore - Indicators is the bridged global
     model_version: (typeof Indicators !== 'undefined' && Indicators.MODEL_VERSION) || 'unknown-client'
   };

@@ -168,18 +168,21 @@
   // -------------------------------------------------------------------------
   function selectAccount(planKey) {
     state.selectedAccount = planKey;
-    accountPills.forEach(pill => {
+    document.querySelectorAll('.prop-account-pill').forEach(pill => {
       pill.classList.toggle('active', pill.dataset.account === planKey);
     });
 
     const meta = {
-      A: { num: 1, name: 'Plan A', avatar: '🛡️', sub: '1R Breakeven · 2R Target · $10,000 USDT' },
-      B: { num: 2, name: 'Plan B', avatar: '🚀', sub: 'Pure 3R Runner · Fixed Stop · $10,000 USDT' },
-      C: { num: 3, name: 'Plan C', avatar: '⚡', sub: 'Dynamic 0.5R Trail · Scale-Out · $10,000 USDT' }
-    }[planKey];
+      A: { num: 1, name: 'Plan A (Baseline)', code: 'A', avatar: '🛡️', sub: '1R Breakeven · 2R Target · $10,000 USDT · Regular Score ≥ 85' },
+      B: { num: 2, name: 'Plan B (Baseline)', code: 'B', avatar: '🎯', sub: 'Pure 3R Runner · Fixed Stop · $10,000 USDT · Regular Score ≥ 85' },
+      C: { num: 3, name: 'Plan C (Baseline)', code: 'C', avatar: '⚡', sub: 'Dynamic 0.5R Trail · Scale-Out · $10,000 USDT · Regular Score ≥ 85' },
+      A_WM: { num: 4, name: 'Plan A (WM Filter)', code: 'A-WM', avatar: '🌪️', sub: '1R Breakeven · 2R Target · $10,000 USDT · Wicktor Momentum Filter' },
+      B_WM: { num: 5, name: 'Plan B (WM Filter)', code: 'B-WM', avatar: '🚀', sub: 'Pure 3R Runner · Fixed Stop · $10,000 USDT · Wicktor Momentum Filter' },
+      C_WM: { num: 6, name: 'Plan C (WM Filter)', code: 'C-WM', avatar: '💎', sub: 'Dynamic 0.5R Trail · Scale-Out · $10,000 USDT · Wicktor Momentum Filter' }
+    }[planKey] || { num: 3, name: 'Plan C', code: 'C', avatar: '⚡', sub: '$10,000 USDT' };
 
     if (avatarEl) avatarEl.textContent = meta.avatar;
-    if (titleTextEl) titleTextEl.textContent = `Account ${meta.num} — ${meta.name} (#W3-10000${planKey})`;
+    if (titleTextEl) titleTextEl.textContent = `Account ${meta.num} — ${meta.name} (#W3-10000${meta.code})`;
     if (subtitleEl) subtitleEl.textContent = `Funded Account (No Phase 1 Limit) · ${meta.sub}`;
     if (cumChartPlanTag) cumChartPlanTag.textContent = `${meta.name} Realized Performance`;
 
@@ -251,7 +254,7 @@
           btn.classList.add('active');
           state.calendarUnit = btn.dataset.unit;
           if (state.multiSim) {
-            const currentSim = state.multiSim[`plan${state.selectedAccount}`];
+            const currentSim = getActiveSim();
             renderCalendar(currentSim);
           }
         });
@@ -263,7 +266,7 @@
         state.historySearch = e.target.value.trim().toUpperCase();
         state.historyPage = 1;
         if (state.multiSim) {
-          const currentSim = state.multiSim[`plan${state.selectedAccount}`];
+          const currentSim = getActiveSim();
           renderHistory(currentSim);
         }
       });
@@ -288,12 +291,27 @@
     renderActiveAccount();
   }
 
-  // Update mini metrics on account switcher pills
+  // Helper to obtain simulation result for the selected account
+  function getActiveSim() {
+    if (!state.multiSim) return null;
+    switch (state.selectedAccount) {
+      case 'A': return state.multiSim.planA;
+      case 'B': return state.multiSim.planB;
+      case 'C': return state.multiSim.planC;
+      case 'A_WM': return state.multiSim.planA_wm;
+      case 'B_WM': return state.multiSim.planB_wm;
+      case 'C_WM': return state.multiSim.planC_wm;
+      default: return state.multiSim.planC;
+    }
+  }
+
+  // Update mini metrics on account switcher pills (All 6 Accounts)
   function renderPillBadges() {
     if (!state.multiSim) return;
-    const { planA, planB, planC } = state.multiSim;
+    const { planA, planB, planC, planA_wm, planB_wm, planC_wm } = state.multiSim;
 
     const updatePill = (k, sim) => {
+      if (!sim) return;
       const pnlEl = document.getElementById(`pill-pnl-${k}`);
       const subEl = document.getElementById(`pill-sub-${k}`);
       const badgeEl = document.getElementById(`pill-badge-${k}`);
@@ -313,8 +331,8 @@
           badgeEl.className = 'prop-badge-halted';
           badgeEl.textContent = 'Daily Halted';
         } else {
-          badgeEl.className = 'prop-badge-active';
-          badgeEl.textContent = 'Active (Live)';
+          badgeEl.className = k.includes('WM') ? 'prop-badge-wm' : 'prop-badge-active';
+          badgeEl.textContent = k.includes('WM') ? 'Active · WM' : 'Active (Live)';
         }
       }
     };
@@ -322,47 +340,72 @@
     updatePill('A', planA);
     updatePill('B', planB);
     updatePill('C', planC);
+    updatePill('A_WM', planA_wm);
+    updatePill('B_WM', planB_wm);
+    updatePill('C_WM', planC_wm);
   }
 
-  // Render Side-by-Side Comparison Table
+  // Render Side-by-Side 6-Account Comparison Table
   function renderComparisonTable() {
     if (!compareTbody || !state.multiSim) return;
-    const { planA, planB, planC } = state.multiSim;
+    const { planA, planB, planC, planA_wm, planB_wm, planC_wm } = state.multiSim;
 
-    const row = (label, aVal, bVal, cVal, isMono = true) => `
+    const row = (label, aVal, bVal, cVal, aWmVal, bWmVal, cWmVal, isMono = true) => `
       <tr>
         <td><strong>${label}</strong></td>
         <td ${isMono ? 'class="mono"' : ''}>${aVal}</td>
         <td ${isMono ? 'class="mono"' : ''}>${bVal}</td>
         <td ${isMono ? 'class="mono"' : ''}>${cVal}</td>
+        <td ${isMono ? 'class="mono"' : ''} style="background:rgba(6,182,212,0.03);">${aWmVal}</td>
+        <td ${isMono ? 'class="mono"' : ''} style="background:rgba(6,182,212,0.03);">${bWmVal}</td>
+        <td ${isMono ? 'class="mono"' : ''} style="background:rgba(6,182,212,0.03);">${cWmVal}</td>
       </tr>`;
 
     compareTbody.innerHTML =
       row('Net Profit ($)', `<span style="color:${rColor(planA.summary.netProfit)}">${fmtDollar(planA.summary.netProfit)}</span>`,
                             `<span style="color:${rColor(planB.summary.netProfit)}">${fmtDollar(planB.summary.netProfit)}</span>`,
-                            `<span style="color:${rColor(planC.summary.netProfit)}">${fmtDollar(planC.summary.netProfit)}</span>`) +
+                            `<span style="color:${rColor(planC.summary.netProfit)}">${fmtDollar(planC.summary.netProfit)}</span>`,
+                            `<span style="color:${rColor(planA_wm.summary.netProfit)}">${fmtDollar(planA_wm.summary.netProfit)}</span>`,
+                            `<span style="color:${rColor(planB_wm.summary.netProfit)}">${fmtDollar(planB_wm.summary.netProfit)}</span>`,
+                            `<span style="color:${rColor(planC_wm.summary.netProfit)}">${fmtDollar(planC_wm.summary.netProfit)}</span>`) +
       row('Return on Capital (ROI)', `<span style="color:${rColor(planA.summary.netRoiPct)}">${fmtPercent(planA.summary.netRoiPct)}</span>`,
                                     `<span style="color:${rColor(planB.summary.netRoiPct)}">${fmtPercent(planB.summary.netRoiPct)}</span>`,
-                                    `<span style="color:${rColor(planC.summary.netRoiPct)}">${fmtPercent(planC.summary.netRoiPct)}</span>`) +
-      row('Win Rate %', `${planA.summary.winRatePct.toFixed(2)}%`, `${planB.summary.winRatePct.toFixed(2)}%`, `${planC.summary.winRatePct.toFixed(2)}%`) +
-      row('Profit Factor', planA.summary.profitFactor.toFixed(2), planB.summary.profitFactor.toFixed(2), planC.summary.profitFactor.toFixed(2)) +
+                                    `<span style="color:${rColor(planC.summary.netRoiPct)}">${fmtPercent(planC.summary.netRoiPct)}</span>`,
+                                    `<span style="color:${rColor(planA_wm.summary.netRoiPct)}">${fmtPercent(planA_wm.summary.netRoiPct)}</span>`,
+                                    `<span style="color:${rColor(planB_wm.summary.netRoiPct)}">${fmtPercent(planB_wm.summary.netRoiPct)}</span>`,
+                                    `<span style="color:${rColor(planC_wm.summary.netRoiPct)}">${fmtPercent(planC_wm.summary.netRoiPct)}</span>`) +
+      row('Win Rate %', `${planA.summary.winRatePct.toFixed(2)}%`, `${planB.summary.winRatePct.toFixed(2)}%`, `${planC.summary.winRatePct.toFixed(2)}%`,
+                        `${planA_wm.summary.winRatePct.toFixed(2)}%`, `${planB_wm.summary.winRatePct.toFixed(2)}%`, `${planC_wm.summary.winRatePct.toFixed(2)}%`) +
+      row('Profit Factor', planA.summary.profitFactor.toFixed(2), planB.summary.profitFactor.toFixed(2), planC.summary.profitFactor.toFixed(2),
+                           planA_wm.summary.profitFactor.toFixed(2), planB_wm.summary.profitFactor.toFixed(2), planC_wm.summary.profitFactor.toFixed(2)) +
       row('Total Trades (W / L)', `${planA.summary.totalTrades} (${planA.summary.wins}W / ${planA.summary.losses}L)`,
                                   `${planB.summary.totalTrades} (${planB.summary.wins}W / ${planB.summary.losses}L)`,
-                                  `${planC.summary.totalTrades} (${planC.summary.wins}W / ${planC.summary.losses}L)`) +
-      row('Avg Realized R:R', planA.stats.avgRealizedRr.toFixed(2), planB.stats.avgRealizedRr.toFixed(2), planC.stats.avgRealizedRr.toFixed(2)) +
-      row('Daily Drawdown Peak', `${planA.summary.maxDailyDdEncounteredPct.toFixed(2)}%`, `${planB.summary.maxDailyDdEncounteredPct.toFixed(2)}%`, `${planC.summary.maxDailyDdEncounteredPct.toFixed(2)}%`) +
-      row('Midnight UTC Max DD', `${planA.summary.maxOverallDdEncounteredPct.toFixed(2)}%`, `${planB.summary.maxOverallDdEncounteredPct.toFixed(2)}%`, `${planC.summary.maxOverallDdEncounteredPct.toFixed(2)}%`) +
-      row('Bybit Fees Paid', fmtDollarPlain(planA.summary.totalFeesPaid), fmtDollarPlain(planB.summary.totalFeesPaid), fmtDollarPlain(planC.summary.totalFeesPaid)) +
+                                  `${planC.summary.totalTrades} (${planC.summary.wins}W / ${planC.summary.losses}L)`,
+                                  `${planA_wm.summary.totalTrades} (${planA_wm.summary.wins}W / ${planA_wm.summary.losses}L)`,
+                                  `${planB_wm.summary.totalTrades} (${planB_wm.summary.wins}W / ${planB_wm.summary.losses}L)`,
+                                  `${planC_wm.summary.totalTrades} (${planC_wm.summary.wins}W / ${planC_wm.summary.losses}L)`) +
+      row('Avg Realized R:R', planA.stats.avgRealizedRr.toFixed(2), planB.stats.avgRealizedRr.toFixed(2), planC.stats.avgRealizedRr.toFixed(2),
+                             planA_wm.stats.avgRealizedRr.toFixed(2), planB_wm.stats.avgRealizedRr.toFixed(2), planC_wm.stats.avgRealizedRr.toFixed(2)) +
+      row('Daily Drawdown Peak', `${planA.summary.maxDailyDdEncounteredPct.toFixed(2)}%`, `${planB.summary.maxDailyDdEncounteredPct.toFixed(2)}%`, `${planC.summary.maxDailyDdEncounteredPct.toFixed(2)}%`,
+                                 `${planA_wm.summary.maxDailyDdEncounteredPct.toFixed(2)}%`, `${planB_wm.summary.maxDailyDdEncounteredPct.toFixed(2)}%`, `${planC_wm.summary.maxDailyDdEncounteredPct.toFixed(2)}%`) +
+      row('Midnight UTC Max DD', `${planA.summary.maxOverallDdEncounteredPct.toFixed(2)}%`, `${planB.summary.maxOverallDdEncounteredPct.toFixed(2)}%`, `${planC.summary.maxOverallDdEncounteredPct.toFixed(2)}%`,
+                                 `${planA_wm.summary.maxOverallDdEncounteredPct.toFixed(2)}%`, `${planB_wm.summary.maxOverallDdEncounteredPct.toFixed(2)}%`, `${planC_wm.summary.maxOverallDdEncounteredPct.toFixed(2)}%`) +
+      row('Bybit Fees Paid', fmtDollarPlain(planA.summary.totalFeesPaid), fmtDollarPlain(planB.summary.totalFeesPaid), fmtDollarPlain(planC.summary.totalFeesPaid),
+                             fmtDollarPlain(planA_wm.summary.totalFeesPaid), fmtDollarPlain(planB_wm.summary.totalFeesPaid), fmtDollarPlain(planC_wm.summary.totalFeesPaid)) +
       row('Best / Worst Trade', `${fmtDollar(planA.stats.bestTrade?.netPnl)} / ${fmtDollar(planA.stats.worstTrade?.netPnl)}`,
                                 `${fmtDollar(planB.stats.bestTrade?.netPnl)} / ${fmtDollar(planB.stats.worstTrade?.netPnl)}`,
-                                `${fmtDollar(planC.stats.bestTrade?.netPnl)} / ${fmtDollar(planC.stats.worstTrade?.netPnl)}`) +
-      row('Account Status', planA.summary.statusText, planB.summary.statusText, planC.summary.statusText, false);
+                                `${fmtDollar(planC.stats.bestTrade?.netPnl)} / ${fmtDollar(planC.stats.worstTrade?.netPnl)}`,
+                                `${fmtDollar(planA_wm.stats.bestTrade?.netPnl)} / ${fmtDollar(planA_wm.stats.worstTrade?.netPnl)}`,
+                                `${fmtDollar(planB_wm.stats.bestTrade?.netPnl)} / ${fmtDollar(planB_wm.stats.worstTrade?.netPnl)}`,
+                                `${fmtDollar(planC_wm.stats.bestTrade?.netPnl)} / ${fmtDollar(planC_wm.stats.worstTrade?.netPnl)}`) +
+      row('Account Status', planA.summary.statusText, planB.summary.statusText, planC.summary.statusText,
+                            planA_wm.summary.statusText, planB_wm.summary.statusText, planC_wm.summary.statusText, false);
   }
 
-  // Render whichever account is currently selected (A, B, or C)
+  // Render whichever account is currently selected (A, B, C, A_WM, B_WM, C_WM)
   function renderActiveAccount() {
     if (!state.multiSim) return;
-    const sim = state.multiSim[`plan${state.selectedAccount}`];
+    const sim = getActiveSim();
     if (!sim) return;
 
     const s = sim.summary;

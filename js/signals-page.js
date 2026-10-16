@@ -86,12 +86,14 @@
   function filtered() {
     if (state.filter === 'long') return state.rows.filter(r => r.direction === 1);
     if (state.filter === 'short') return state.rows.filter(r => r.direction === -1);
+    if (state.filter === 'wm') return state.rows.filter(r => r.wm_filter);
     return state.rows;
   }
 
   function statsFiltered() {
     if (state.filter === 'long') return state.statsRows.filter(r => r.direction === 1);
     if (state.filter === 'short') return state.statsRows.filter(r => r.direction === -1);
+    if (state.filter === 'wm') return state.statsRows.filter(r => r.wm_filter);
     return state.statsRows;
   }
 
@@ -173,10 +175,11 @@
 
   function renderTabs() {
     const n = f => f === 'all' ? state.statsRows.length
+      : f === 'wm' ? state.statsRows.filter(r => r.wm_filter).length
       : state.statsRows.filter(r => r.direction === (f === 'long' ? 1 : -1)).length;
-    const tabs = [['all', 'All'], ['long', 'Long'], ['short', 'Short']];
+    const tabs = [['all', 'All'], ['long', 'Long'], ['short', 'Short'], ['wm', '⚡ WM Filter']];
     tabsEl.innerHTML = tabs.map(([key, label]) =>
-      `<button class="chip${state.filter === key ? ' active' : ''}" data-filter="${key}">${label} (${n(key)})</button>`
+      `<button class="chip${key === 'wm' ? ' chip--wm' : ''}${state.filter === key ? ' active' : ''}" data-filter="${key}">${label} (${n(key)})</button>`
     ).join('');
     tabsEl.querySelectorAll('[data-filter]').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -245,7 +248,7 @@
 
       return `
       <tr>
-        <td>${esc(r.symbol.replace(/USDT$/, ''))} <span style="color:var(--text3);font-size:11px;">${esc(r.market)}</span></td>
+        <td>${esc(r.symbol.replace(/USDT$/, ''))} <span style="color:var(--text3);font-size:11px;">${esc(r.market)}</span>${r.wm_filter ? ' <span class="wm-filter-badge" style="font-size:9px;padding:0 4px;">⚡ WM</span>' : ''}</td>
         <td style="color:${r.direction === 1 ? 'var(--green-text)' : 'var(--red-text)'};">${r.direction === 1 ? 'Long' : 'Short'}</td>
         <td class="mono">${esc(r.score)}</td>
         <td style="font-size:11px;color:var(--text2);">${esc(r.trigger_name || '--')}</td>

@@ -120,6 +120,24 @@ const CoinView = (() => {
       try { snap4h = Indicators.analyzeTimeframe(candles.h4); } catch {}
     }
 
+    const tfChips = [
+      tfChipData('4H', candles && candles.h4, snap4h),
+      tfChipData('1H', candles && candles.h1, tfSnaps[0]),
+      tfChipData('15M', candles && candles.m15, tfSnaps[1]),
+      tfChipData('5M', candles && candles.m5, tfSnaps[2])
+    ];
+
+    const chg4h = tfChips[0] ? tfChips[0].pct : 0;
+    const chg1h = tfChips[1] ? tfChips[1].pct : 0;
+    const rsi1h = Array.isArray(result.rsiByTf) ? result.rsiByTf[0] : 50;
+
+    let wmFilter = false;
+    if (tradeDir === 1) {
+      wmFilter = chg1h > 0 && chg4h > 0 && rsi1h >= 60;
+    } else if (tradeDir === -1) {
+      wmFilter = chg1h < 0 && chg4h < 0 && rsi1h <= 40;
+    }
+
     return {
       symbol: displaySymbol,
       rawSymbol: base.symbol,
@@ -132,15 +150,9 @@ const CoinView = (() => {
       mcap: formatMcap(mcapRaw),
       mcapRaw: mcapRaw == null ? null : mcapRaw,
       volatility: classifyVolatility(candles && candles.h1),
-      // Always null today — kept so the field exists rather than being
-      // undefined at every read site (render.js branches on it).
+      wmFilter,
       unlock: null,
-      tfChips: [
-        tfChipData('4H', candles && candles.h4, snap4h),
-        tfChipData('1H', candles && candles.h1, tfSnaps[0]),
-        tfChipData('15M', candles && candles.m15, tfSnaps[1]),
-        tfChipData('5M', candles && candles.m5, tfSnaps[2])
-      ],
+      tfChips,
       resistance: formatPrice(result.tfSnapshots[0].resistance),
       support: formatPrice(result.tfSnapshots[0].support),
       resistanceSloped: result.tfSnapshots[0].resistanceSloped,

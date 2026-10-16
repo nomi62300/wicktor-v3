@@ -35,65 +35,107 @@
       </span>
     </div>
     <button id="prop-toggle-compare-btn" class="chip" style="font-size:11px;padding:4px 10px;">
-      📊 Compare All 3 Accounts
+      📊 Compare All 6 Accounts
     </button>
   </div>
 
   <div class="prop-account-switcher" id="prop-account-switcher">
-    <!-- Account 1: Plan A -->
+    <!-- Account 1: Plan A (Baseline) -->
     <div class="prop-account-pill" data-account="A" id="account-pill-A">
       <div class="prop-pill-title">
         <span>Account 1 — Plan A</span>
         <span class="prop-badge-active" id="pill-badge-A">Active</span>
       </div>
-      <div class="prop-pill-plan">1R Breakeven &middot; 2R Target &middot; $10k USDT</div>
+      <div class="prop-pill-plan">1R Breakeven &middot; 2R Target &middot; Base &ge;85</div>
       <div class="prop-pill-metrics">
         <span class="prop-pill-pnl" id="pill-pnl-A">+$0.00</span>
         <span class="prop-pill-sub" id="pill-sub-A">0.0% WR &middot; 0 Trades</span>
       </div>
     </div>
 
-    <!-- Account 2: Plan B -->
+    <!-- Account 2: Plan B (Baseline) -->
     <div class="prop-account-pill" data-account="B" id="account-pill-B">
       <div class="prop-pill-title">
         <span>Account 2 — Plan B</span>
         <span class="prop-badge-active" id="pill-badge-B">Active</span>
       </div>
-      <div class="prop-pill-plan">Pure 3R Runner &middot; Fixed Stop &middot; $10k USDT</div>
+      <div class="prop-pill-plan">Pure 3R Runner &middot; Fixed Stop &middot; Base &ge;85</div>
       <div class="prop-pill-metrics">
         <span class="prop-pill-pnl" id="pill-pnl-B">+$0.00</span>
         <span class="prop-pill-sub" id="pill-sub-B">0.0% WR &middot; 0 Trades</span>
       </div>
     </div>
 
-    <!-- Account 3: Plan C -->
+    <!-- Account 3: Plan C (Baseline) -->
     <div class="prop-account-pill active" data-account="C" id="account-pill-C">
       <div class="prop-pill-title">
         <span>Account 3 — Plan C</span>
         <span class="prop-badge-active" id="pill-badge-C">Active</span>
       </div>
-      <div class="prop-pill-plan">Dynamic 0.5R Trail &middot; Scale-Out &middot; $10k USDT</div>
+      <div class="prop-pill-plan">Dynamic 0.5R Trail &middot; Scale-Out &middot; Base &ge;85</div>
       <div class="prop-pill-metrics">
         <span class="prop-pill-pnl" id="pill-pnl-C">+$0.00</span>
         <span class="prop-pill-sub" id="pill-sub-C">0.0% WR &middot; 0 Trades</span>
       </div>
     </div>
+
+    <!-- Account 4: Plan A (WM Filter) -->
+    <div class="prop-account-pill prop-account-pill--wm" data-account="A_WM" id="account-pill-A_WM">
+      <div class="prop-pill-title">
+        <span>Account 4 — Plan A (WM)</span>
+        <span class="prop-badge-wm" id="pill-badge-A_WM">Active · WM</span>
+      </div>
+      <div class="prop-pill-plan">1R BE &middot; 2R Target &middot; WM Momentum Filter</div>
+      <div class="prop-pill-metrics">
+        <span class="prop-pill-pnl" id="pill-pnl-A_WM">+$0.00</span>
+        <span class="prop-pill-sub" id="pill-sub-A_WM">0.0% WR &middot; 0 Trades</span>
+      </div>
+    </div>
+
+    <!-- Account 5: Plan B (WM Filter) -->
+    <div class="prop-account-pill prop-account-pill--wm" data-account="B_WM" id="account-pill-B_WM">
+      <div class="prop-pill-title">
+        <span>Account 5 — Plan B (WM)</span>
+        <span class="prop-badge-wm" id="pill-badge-B_WM">Active · WM</span>
+      </div>
+      <div class="prop-pill-plan">Pure 3R Runner &middot; WM Momentum Filter</div>
+      <div class="prop-pill-metrics">
+        <span class="prop-pill-pnl" id="pill-pnl-B_WM">+$0.00</span>
+        <span class="prop-pill-sub" id="pill-sub-B_WM">0.0% WR &middot; 0 Trades</span>
+      </div>
+    </div>
+
+    <!-- Account 6: Plan C (WM Filter) -->
+    <div class="prop-account-pill prop-account-pill--wm" data-account="C_WM" id="account-pill-C_WM">
+      <div class="prop-pill-title">
+        <span>Account 6 — Plan C (WM)</span>
+        <span class="prop-badge-wm" id="pill-badge-C_WM">Active · WM</span>
+      </div>
+      <div class="prop-pill-plan">Dynamic 0.5R Trail &middot; WM Momentum Filter</div>
+      <div class="prop-pill-metrics">
+        <span class="prop-pill-pnl" id="pill-pnl-C_WM">+$0.00</span>
+        <span class="prop-pill-sub" id="pill-sub-C_WM">0.0% WR &middot; 0 Trades</span>
+      </div>
+    </div>
   </div>
 
-  <!-- Side-by-Side 3-Account Comparison Matrix (Collapsible) -->
+  <!-- Side-by-Side 6-Account Comparison Matrix (Collapsible) -->
   <div class="prop-compare-card" id="prop-compare-card" style="display:none;">
     <div class="prop-compare-header">
-      <span style="font-weight:600;font-size:13px;">3-Account Performance Comparison Matrix</span>
-      <span style="font-size:11px;color:var(--text3);">Initial Capital: $10,000 USDT each &middot; No Phase 1 Limit</span>
+      <span style="font-weight:600;font-size:13px;">6-Account Performance Comparison Matrix</span>
+      <span style="font-size:11px;color:var(--text3);">Initial Capital: $10,000 USDT each &middot; No Phase 1 Limit &middot; Score &ge; 85</span>
     </div>
     <div style="overflow-x:auto;">
       <table class="prop-compare-table">
         <thead>
           <tr>
             <th>Performance Metric</th>
-            <th>Account 1 (Plan A: 2R BE)</th>
-            <th>Account 2 (Plan B: 3R Runner)</th>
-            <th>Account 3 (Plan C: Dynamic Trail)</th>
+            <th>Acc 1 (Plan A: Base)</th>
+            <th>Acc 2 (Plan B: Base)</th>
+            <th>Acc 3 (Plan C: Base)</th>
+            <th>Acc 4 (Plan A: WM)</th>
+            <th>Acc 5 (Plan B: WM)</th>
+            <th>Acc 6 (Plan C: WM)</th>
           </tr>
         </thead>
         <tbody id="prop-compare-tbody">
@@ -342,7 +384,7 @@
 
 </div>
 
-<script src="js/portfolio.js?v=3.2.8"></script>
-<script src="js/portfolio-page.js?v=3.2.8"></script>
+<script src="js/portfolio.js?v=3.3.0"></script>
+<script src="js/portfolio-page.js?v=3.3.0"></script>
 </body>
 </html>

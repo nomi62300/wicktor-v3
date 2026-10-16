@@ -87,6 +87,8 @@
       <div class="filter-row" data-group="quality" role="group" aria-label="Quality filters">
         <button class="chip" data-group="quality" data-filter="3tf">3 TF aligned</button>
         <button class="chip" data-group="quality" data-filter="divergence">Divergence</button>
+        <span class="filter-row-sep"></span>
+        <button class="chip chip--wm" data-group="wm" data-filter="wm" id="wm-filter-chip" title="Wicktor Momentum Filter: 1H+4H Velocity & RSI Momentum (Long: 1h>0, 4h>0, RSI≥60 | Short: 1h<0, 4h<0, RSI≤40)">⚡ WM Filter</button>
       </div>
       <!-- Row 2: Band + Side groups -->
       <div class="filter-row" aria-label="Band and side filters">
@@ -316,14 +318,14 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.js.iife.js"></script>
 <!-- ?v= forces a stale cache to drop old geometry; bump on any scoring change -->
-<script src="js/indicators.js?v=3.2.4"></script>
-<script src="js/scoring.js?v=3.2.4"></script>
-<script src="js/api.js?v=3.2.4"></script>
-<script src="js/outcomes.js?v=3.2.4"></script>
-<script src="js/auth.js?v=3.2.4"></script>
-<script src="js/signals.js?v=3.2.4"></script>
-<script src="js/coinview.js?v=3.2.4"></script>
-<script src="js/render.js?v=3.2.4"></script>
-<script src="js/app.js?v=3.2.4"></script>
+<script src="js/indicators.js?v=3.3.0"></script>
+<script src="js/scoring.js?v=3.3.0"></script>
+<script src="js/api.js?v=3.3.0"></script>
+<script src="js/outcomes.js?v=3.3.0"></script>
+<script src="js/auth.js?v=3.3.0"></script>
+<script src="js/signals.js?v=3.3.0"></script>
+<script src="js/coinview.js?v=3.3.0"></script>
+<script src="js/render.js?v=3.3.0"></script>
+<script src="js/app.js?v=3.3.0"></script>
 </body>
 </html>

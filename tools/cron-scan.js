@@ -148,11 +148,25 @@ async function scoreCoin(base, category) {
   const result = Scoring.evaluate({ h1, m15, m5 }, { oiChange15m: oi });
   if (!result) return null;
 
+  let wmFilter = false;
+  if (result.setup && result.setup.direction && h1.length >= 5) {
+    const dir = result.setup.direction;
+    const lastC = h1[h1.length - 1].c;
+    const prev1h = h1[h1.length - 2] ? h1[h1.length - 2].c : lastC;
+    const prev4h = h1[h1.length - 5] ? h1[h1.length - 5].c : prev1h;
+    const chg1h = ((lastC - prev1h) / prev1h) * 100;
+    const chg4h = ((lastC - prev4h) / prev4h) * 100;
+    const rsi1h = (result.rsiByTf && result.rsiByTf[0]) || 50;
+    if (dir === 1) wmFilter = chg1h > 0 && chg4h > 0 && rsi1h >= 60;
+    else if (dir === -1) wmFilter = chg1h < 0 && chg4h < 0 && rsi1h <= 40;
+  }
+
   return {
     rawSymbol: base.symbol,
     market: category === 'linear' ? 'PERP' : 'SPOT',
     score: result.score,
     setup: result.setup,
+    wmFilter,
     m5
   };
 }
@@ -190,6 +204,7 @@ function rowFor(coin, barTime) {
     stop: rr.stop,
     target: rr.target,
     risk_pct: rr.riskPct != null ? +rr.riskPct.toFixed(4) : null,
+    wm_filter: !!coin.wmFilter,
     model_version: global.Indicators.MODEL_VERSION || 'unknown-client'
   };
 }

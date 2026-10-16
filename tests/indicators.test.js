@@ -819,21 +819,72 @@ test('portfolio: top score priority selects highest score setups and respects co
   assert.deepStrictEqual(takenSymbols, ['TOP1', 'TOP2']);
 });
 
-test('portfolio: multi-account simulation supports Plan A (2R max), Plan B (3R runner), and Plan C', () => {
+test('portfolio: multi-account simulation supports 6 accounts (Plan A, B, C baseline and Plan A, B, C with WM filter)', () => {
   const t0 = Date.parse('2026-10-15T12:00:00Z');
   const signals = [
-    { id: 21, symbol: 'SOLUSDT', market: 'PERP', direction: 1, score: 90, entry: 150, stop: 147, target: 159, risk_pct: 2, bar_time: t0, resolved_bar_time: t0 + 3600000, status: 'resolved', outcome_a: 2.0, outcome_b: 3.0, outcome_c: 1.8 }
+    { id: 21, symbol: 'SOLUSDT', market: 'PERP', direction: 1, score: 90, entry: 150, stop: 147, target: 159, risk_pct: 2, bar_time: t0, resolved_bar_time: t0 + 3600000, status: 'resolved', outcome_a: 2.0, outcome_b: 3.0, outcome_c: 1.8, wm_filter: false },
+    { id: 22, symbol: 'ETHUSDT', market: 'PERP', direction: 1, score: 92, entry: 2500, stop: 2450, target: 2650, risk_pct: 2, bar_time: t0 + 1000, resolved_bar_time: t0 + 3601000, status: 'resolved', outcome_a: 2.0, outcome_b: 3.0, outcome_c: 2.1, wm_filter: true }
   ];
 
   const multi = PortfolioSimulator.simulateMulti(signals, { minScore: 85, riskPctPerTrade: 0.01 });
   assert.strictEqual(multi.planA.plan, 'A');
   assert.strictEqual(multi.planB.plan, 'B');
   assert.strictEqual(multi.planC.plan, 'C');
+  assert.strictEqual(multi.planA_wm.plan, 'A');
+  assert.strictEqual(multi.planB_wm.plan, 'B');
+  assert.strictEqual(multi.planC_wm.plan, 'C');
 
-  assert.strictEqual(multi.planA.closedTrades[0].outcome_r, 2.0);
-  assert.strictEqual(multi.planB.closedTrades[0].outcome_r, 3.0);
-  assert.strictEqual(multi.planC.closedTrades[0].outcome_r, 1.8);
-  assert.strictEqual(multi.planA.summary.statusText, 'Funded / Active (No End Target)');
+  // Baseline accounts take both signals
+  assert.strictEqual(multi.planA.summary.totalTrades, 2);
+  assert.strictEqual(multi.planB.summary.totalTrades, 2);
+  assert.strictEqual(multi.planC.summary.totalTrades, 2);
+
+  // WM Filter accounts take ONLY the qualifying ETHUSDT signal (id: 22)
+  assert.strictEqual(multi.planA_wm.summary.totalTrades, 1);
+  assert.strictEqual(multi.planB_wm.summary.totalTrades, 1);
+  assert.strictEqual(multi.planC_wm.summary.totalTrades, 1);
+  assert.strictEqual(multi.planA_wm.closedTrades[0].symbol, 'ETHUSDT');
+});
+
+test('coinview: calculates wmFilter based on 1h/4h velocity and 1h RSI', () => {
+  // Long setup: 4h>0, 1h>0, RSI>=60 -> passes WM Filter
+  const candlesBull = {
+    h4: [{ c: 100 }, { c: 102 }],
+    h1: [{ c: 101 }, { c: 102 }],
+    m15: [{ c: 101.5 }, { c: 102 }],
+    m5: [{ c: 101.8 }, { c: 102 }]
+  };
+  const bullResult = {
+    setupDirection: 1,
+    bias: 1,
+    score: 85,
+    rsiByTf: [65, 60, 58],
+    tfSnapshots: [{}, {}, {}]
+  };
+  const bullView = CoinView.build(bullResult, { symbol: 'BTCUSDT', price: 102 }, candlesBull, { market: 'PERP' });
+  assert.strictEqual(bullView.wmFilter, true);
+
+  // Long setup with low RSI (< 60) -> fails WM Filter
+  const bullLowRsiResult = { ...bullResult, rsiByTf: [52, 50, 48] };
+  const bullLowRsiView = CoinView.build(bullLowRsiResult, { symbol: 'BTCUSDT', price: 102 }, candlesBull, { market: 'PERP' });
+  assert.strictEqual(bullLowRsiView.wmFilter, false);
+
+  // Short setup: 4h<0, 1h<0, RSI<=40 -> passes WM Filter
+  const candlesBear = {
+    h4: [{ c: 100 }, { c: 98 }],
+    h1: [{ c: 99 }, { c: 98 }],
+    m15: [{ c: 98.5 }, { c: 98 }],
+    m5: [{ c: 98.2 }, { c: 98 }]
+  };
+  const bearResult = {
+    setupDirection: -1,
+    bias: -1,
+    score: 85,
+    rsiByTf: [35, 38, 40],
+    tfSnapshots: [{}, {}, {}]
+  };
+  const bearView = CoinView.build(bearResult, { symbol: 'ETHUSDT', price: 98 }, candlesBear, { market: 'PERP' });
+  assert.strictEqual(bearView.wmFilter, true);
 });
 
 // ---------------------------------------------------------------------------

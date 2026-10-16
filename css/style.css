@@ -447,6 +447,36 @@ input:focus-visible {
 .chip--watch.active    { color: var(--gold-text);  background: rgba(217,180,106,0.12); border-color: var(--gold); }
 .chip--avoid.active    { color: var(--text2);       background: var(--surf2);           border-color: var(--border-strong); }
 
+/* Wicktor Momentum Filter (WM Filter) chip */
+.chip--wm {
+  border-color: rgba(6, 182, 212, 0.4);
+  color: #22d3ee;
+}
+.chip--wm:hover {
+  border-color: #06b6d4;
+  background: rgba(6, 182, 212, 0.08);
+}
+.chip--wm.active {
+  color: #22d3ee;
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.22), rgba(59, 130, 246, 0.22));
+  border-color: #06b6d4;
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.35);
+  font-weight: 600;
+}
+.wm-filter-badge {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(59, 130, 246, 0.25));
+  color: #22d3ee;
+  border: 1px solid rgba(6, 182, 212, 0.4);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
 /* Side chips */
 .chip--buy.active  { color: var(--green-text); background: rgba(79,174,142,0.12); border-color: var(--green); }
 .chip--sell.active { color: var(--red-text);   background: rgba(224,116,95,0.12);  border-color: var(--red); }
@@ -1185,6 +1215,28 @@ input:focus-visible {
   background: rgba(245, 158, 11, 0.08);
   border-color: #f59e0b;
   box-shadow: 0 0 0 1px #f59e0b;
+}
+.prop-account-pill--wm {
+  border-color: rgba(6, 182, 212, 0.35);
+  background: linear-gradient(180deg, rgba(6, 182, 212, 0.04) 0%, var(--surf) 100%);
+}
+.prop-account-pill--wm:hover {
+  border-color: rgba(6, 182, 212, 0.6);
+  background: linear-gradient(180deg, rgba(6, 182, 212, 0.08) 0%, var(--surf2) 100%);
+}
+.prop-account-pill--wm.active {
+  background: linear-gradient(180deg, rgba(6, 182, 212, 0.12) 0%, rgba(15, 23, 42, 0.7) 100%);
+  border-color: #06b6d4;
+  box-shadow: 0 0 16px rgba(6, 182, 212, 0.3);
+}
+.prop-badge-wm {
+  background: rgba(6, 182, 212, 0.15);
+  color: #22d3ee;
+  border: 1px solid rgba(6, 182, 212, 0.4);
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
 }
 .prop-pill-title {
   display: flex;

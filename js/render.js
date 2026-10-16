@@ -92,6 +92,24 @@ const Render = (() => {
     return `<span class="market-badge ${cls}">${market}</span>`;
   }
 
+  function wmBadgeHtml(coin) {
+    if (!coin) return '';
+    const isWm = coin.wmFilter != null ? coin.wmFilter : (function() {
+      const chip4h = coin.tfChips && coin.tfChips.find(t => t.label === '4H');
+      const chip1h = coin.tfChips && coin.tfChips.find(t => t.label === '1H');
+      const chg4h = chip4h ? chip4h.pct : 0;
+      const chg1h = chip1h ? chip1h.pct : 0;
+      const rsi1h = Array.isArray(coin.rsiByTf) ? coin.rsiByTf[0] : 50;
+      const dir = coin.setupDirection || (coin.side === 'Long' || coin.side === 'Buy' ? 1 : -1);
+      if (dir === 1) return chg1h > 0 && chg4h > 0 && rsi1h >= 60;
+      if (dir === -1) return chg1h < 0 && chg4h < 0 && rsi1h <= 40;
+      return false;
+    })();
+
+    if (!isWm) return '';
+    return `<span class="wm-filter-badge" title="Wicktor Momentum Filter Verified (1h & 4h Velocity + RSI Heatmap)">⚡ WM</span>`;
+  }
+
   function sideBadgeHtml(side) {
     const cls = (side === 'Sell' || side === 'Short') ? 'sell' : 'buy';
     return `<span class="side-badge ${cls}">${side}</span>`;
@@ -293,7 +311,10 @@ const Render = (() => {
     <div class="coin-card${unlockSevereCls}${sideCls}" data-idx="${idx}" tabindex="0" role="button" aria-label="${esc(coin.symbol)} details">
       <div class="card-row-top">
         <span class="card-time"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> ${esc(timeLabel)}${newFlagHtml(coin.isNew)}${scoreDeltaHtml(coin.scoreDelta, coin.score)}</span>
-        ${marketBadgeHtml(coin.market)}
+        <div style="display:flex;align-items:center;gap:4px;">
+          ${wmBadgeHtml(coin)}
+          ${marketBadgeHtml(coin.market)}
+        </div>
       </div>
       <div class="card-head">
         ${scoreRingSvg(coin.score)}

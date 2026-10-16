@@ -292,6 +292,7 @@ const SignalJournal = (() => {
         component_method: s.components ? s.components.method : null,
         entry: rr.entry, stop: rr.stop, target: rr.target,
         risk_pct: rr.riskPct != null ? +rr.riskPct.toFixed(4) : null,
+        wm_filter: c.wmFilter != null ? !!c.wmFilter : false,
         // Sent explicitly, never left to the column default: a stale cached
         // build would otherwise have its old-geometry rows stamped with
         // whatever version the database currently believes is current.

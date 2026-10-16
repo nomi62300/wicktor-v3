@@ -24,6 +24,7 @@
   const DEFAULT_OPTIONS = {
     startingCapital: 10000,
     plan: 'C',                 // 'A', 'B', or 'C'
+    wmFilter: false,           // boolean: require Wicktor Momentum Filter
     dailyDdLimitPct: 0.04,     // 4% daily closed loss limit
     overallDdLimitPct: 0.08,   // 8% total account limit evaluated at midnight UTC
     maxConcurrentSlots: 5,     // 5 positions max
@@ -55,6 +56,7 @@
 
     return {
       plan,
+      wmFilter: !!opts.wmFilter,
       summary: {
         startingCapital,
         currentBalance: startingCapital,
@@ -209,9 +211,11 @@
       return dailyLedger.get(dateStr);
     }
 
+    const requireWm = !!opts.wmFilter;
     const validSignals = (signals || [])
       .filter(s => s && s.bar_time && (s.status === 'resolved' || s.status === 'open'))
-      .filter(s => Number(s.score) >= minScore);
+      .filter(s => Number(s.score) >= minScore)
+      .filter(s => !requireWm || s.wm_filter === true || (s.context_regime && s.context_regime.includes('[WM]')) || (s.trigger_name && s.trigger_name.includes('[WM]')));
 
     if (!validSignals.length) {
       return buildEmptySimulationResult(opts);
@@ -823,9 +827,12 @@
 
   function simulateMulti(signals, options = {}) {
     return {
-      planA: simulate(signals, { ...options, plan: 'A' }),
-      planB: simulate(signals, { ...options, plan: 'B' }),
-      planC: simulate(signals, { ...options, plan: 'C' })
+      planA: simulate(signals, { ...options, plan: 'A', wmFilter: false }),
+      planB: simulate(signals, { ...options, plan: 'B', wmFilter: false }),
+      planC: simulate(signals, { ...options, plan: 'C', wmFilter: false }),
+      planA_wm: simulate(signals, { ...options, plan: 'A', wmFilter: true }),
+      planB_wm: simulate(signals, { ...options, plan: 'B', wmFilter: true }),
+      planC_wm: simulate(signals, { ...options, plan: 'C', wmFilter: true })
     };
   }
 
