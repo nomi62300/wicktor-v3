@@ -819,6 +819,23 @@ test('portfolio: top score priority selects highest score setups and respects co
   assert.deepStrictEqual(takenSymbols, ['TOP1', 'TOP2']);
 });
 
+test('portfolio: multi-account simulation supports Plan A (2R max), Plan B (3R runner), and Plan C', () => {
+  const t0 = Date.parse('2026-10-15T12:00:00Z');
+  const signals = [
+    { id: 21, symbol: 'SOLUSDT', market: 'PERP', direction: 1, score: 90, entry: 150, stop: 147, target: 159, risk_pct: 2, bar_time: t0, resolved_bar_time: t0 + 3600000, status: 'resolved', outcome_a: 2.0, outcome_b: 3.0, outcome_c: 1.8 }
+  ];
+
+  const multi = PortfolioSimulator.simulateMulti(signals, { minScore: 85, riskPctPerTrade: 0.01 });
+  assert.strictEqual(multi.planA.plan, 'A');
+  assert.strictEqual(multi.planB.plan, 'B');
+  assert.strictEqual(multi.planC.plan, 'C');
+
+  assert.strictEqual(multi.planA.closedTrades[0].outcome_r, 2.0);
+  assert.strictEqual(multi.planB.closedTrades[0].outcome_r, 3.0);
+  assert.strictEqual(multi.planC.closedTrades[0].outcome_r, 1.8);
+  assert.strictEqual(multi.planA.summary.statusText, 'Funded / Active (No End Target)');
+});
+
 // ---------------------------------------------------------------------------
 // Phase C4 — the setup scoring model
 // ---------------------------------------------------------------------------

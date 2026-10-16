@@ -4,6 +4,32 @@ All notable changes to Wicktor are documented in this file, in the
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. This
 project uses [Semantic Versioning](https://semver.org/).
 
+## [v3.2.8] - Dedicated Multi-Account Prop Portfolio (3x $10k Plans A, B, C), Closed-Trade Drawdown & Mobile Responsiveness
+
+### Added & Improved
+- **Dedicated Multi-Account Portfolio Page (`portfolio.html` & `js/portfolio-page.js`):**
+  - Fully separated the Signal Journal (`signals.html`) and Prop Firm Portfolio (`portfolio.html`) into dedicated standalone pages with clean cross-navigation.
+  - **3 Independent $10,000 USDT Accounts:**
+    * **Account 1 (Plan A):** 1R Breakeven + 2R full target.
+    * **Account 2 (Plan B):** Pure 3R runner with fixed structural stop.
+    * **Account 3 (Plan C):** Scale-out at TP1 (SL to BE), dynamic 0.5R trailing stop, 1/3 at TP2, 1/3 at TP3.
+  - **Account Switcher:** Seamless pill selector at the top showing real-time Net P&L, Win Rate %, Total Trades, and status for each account.
+  - **3-Account Comparison Matrix:** Collapsible side-by-side comparison table evaluating Net Profit, ROI %, Win Rate, Profit Factor, Realized R:R, and Drawdowns across all 3 plans.
+- **Drawdown Calculation Engine (`js/portfolio.js`):**
+  - **Daily Drawdown:** Calculated strictly when a trade closes (realized loss during that UTC day), completely excluding running/floating losses.
+  - **Midnight UTC Reset:** The daily drawdown counter strictly resets to zero at `00:00:00 UTC` every night.
+  - **Midnight UTC Max Drawdown:** Evaluated and updated at midnight UTC based on completed daily closing balance against peak closing balance, not floating loss, enforcing the hard 8% floor ($9,200).
+- **Funded Live Accounts (No Phase 1 Limit):**
+  - Removed evaluation / Phase 1 profit ceilings ($800 limit). Accounts run continuously to keep accumulating capital without an end target.
+- **Fixed Trading Overview Tab:**
+  - Resolved blank rendering / undefined property exceptions by introducing `buildEmptySimulationResult(opts)` and defensive chart renderers.
+  - Full display of KPIs, Weekly trade distribution, Trading sessions (London, NY, Asia, Other), Cumulative P&L chart, Streaks, Costs & Fees, Long/Short split, and Active slot status.
+- **Mobile Responsiveness (`css/style.css`):**
+  - Added dedicated mobile media queries (`@media (max-width: 768px)` and `@media (max-width: 480px)`).
+  - Countdown boxes, account switcher, sub-tabs bar, objective cards, calendar cells, and charts scale smoothly on iOS and Android devices.
+- **Signal Journal Plan B Win Rate (`signals.html` & `js/signals-page.js`):**
+  - Added the missing **Plan B Win Rate** (`Win rate · B`) to the journal summary strip alongside Plan A and Plan C.
+
 ## [v3.2.7] - Prop Firm Dashboard Architecture with 4 Specialized Sub-Tabs & Live UTC Midnight Countdown
 
 ### Added & Improved

@@ -1152,3 +1152,200 @@ input:focus-visible {
   font-weight: 600;
 }
 
+/* ==========================================================================
+   Multi-Account Switcher & Comparison Table
+   ========================================================================== */
+.prop-account-switcher {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  -webkit-overflow-scrolling: touch;
+}
+.prop-account-pill {
+  flex: 1;
+  min-width: 260px;
+  background: var(--surf);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.prop-account-pill:hover {
+  background: var(--surf2);
+  border-color: var(--border-strong);
+}
+.prop-account-pill.active {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 1px #f59e0b;
+}
+.prop-pill-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.prop-pill-plan {
+  font-size: 11px;
+  color: var(--text3);
+}
+.prop-pill-metrics {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.prop-pill-pnl {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 700;
+}
+.prop-pill-sub {
+  font-size: 11px;
+  color: var(--text2);
+}
+
+/* Side-by-side comparison matrix */
+.prop-compare-card {
+  background: var(--surf);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+.prop-compare-header {
+  padding: 12px 18px;
+  background: var(--surf2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.prop-compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.prop-compare-table th,
+.prop-compare-table td {
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.prop-compare-table th {
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text3);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.prop-compare-table tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* ==========================================================================
+   Mobile Responsiveness for Portfolio & Prop Firm Dashboard
+   ========================================================================== */
+@media (max-width: 900px) {
+  .prop-grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .prop-header-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+    padding: 14px;
+  }
+  .prop-account-info {
+    width: 100%;
+  }
+  .prop-countdown-wrap {
+    width: 100%;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
+  .prop-countdown-label {
+    text-align: left;
+  }
+  .prop-grid-2,
+  .prop-grid-3,
+  .prop-grid-4 {
+    grid-template-columns: 1fr;
+  }
+  .prop-subtabs-bar {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 6px;
+  }
+  .prop-subtab-btn {
+    white-space: nowrap;
+    padding: 6px 14px;
+    font-size: 12px;
+  }
+  .prop-account-pill {
+    min-width: 220px;
+  }
+  .prop-cal-header-row,
+  .prop-cal-grid {
+    gap: 4px;
+  }
+  .prop-cal-header-cell {
+    font-size: 10px;
+  }
+  .prop-cal-cell {
+    min-height: 60px;
+    padding: 6px 4px;
+  }
+  .prop-cal-num {
+    font-size: 10px;
+  }
+  .prop-cal-val {
+    font-size: 11px;
+  }
+  .prop-cal-sub {
+    font-size: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .prop-countdown-boxes {
+    gap: 4px;
+  }
+  .prop-count-box {
+    min-width: 36px;
+    padding: 3px 5px;
+  }
+  .prop-count-box span {
+    font-size: 14px;
+  }
+  .prop-count-box small {
+    font-size: 7px;
+  }
+  .prop-account-title {
+    font-size: 14px;
+  }
+  .prop-cal-cell {
+    min-height: 50px;
+    padding: 4px 2px;
+  }
+}
+
+

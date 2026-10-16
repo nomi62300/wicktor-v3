@@ -1,15 +1,21 @@
 /* ==========================================================================
-   Wicktor — Prop Trading Portfolio Simulation Engine (Plan C)
+   Wicktor — Prop Trading Multi-Account Portfolio Simulation Engine
+   Supports Plan A, Plan B, and Plan C execution:
 
-   Simulates a realistic $10,000 USDT prop-firm / personal trading account:
-   - Starting Capital: 10,000 USDT
-   - Daily Drawdown Limit: 4% ($400), strictly resetting every midnight UTC (00:00:00 UTC)
-   - Max Overall Drawdown Limit: 8% ($800)
-   - Trade Execution: Plan C (1/3 at TP1 + BE stop, 0.5R dynamic trailing stop,
-     1/3 at TP2 with TP1 floor, 1/3 at TP3, 4h max horizon)
-   - Capacity: Controlled concurrent slots (e.g. 5 positions max)
-   - Filtering: Top-tier score priority (highest composite score first)
-   - Friction: Realistic Bybit Perps taker fees (0.055% open + 0.055% close = 0.11% notional)
+   Funded Account Specifications (No Phase 1 Limit - Continuous Trading):
+   - Starting Capital: 10,000 USDT per account
+   - Daily Drawdown Limit: 4% ($400 max closed loss), calculated when a trade closes.
+     Clock/counter resets strictly every Midnight UTC (00:00:00 UTC).
+   - Max Drawdown Limit: 8% ($800 max loss / $9,200 balance floor).
+     Updated every Midnight UTC based on completed daily closing capital (not floating loss).
+   - Trade Execution Plans:
+     * Plan A: Move SL to BE at TP1 (+1R); take 100% at TP2 (+2R).
+     * Plan B: Fixed TP at TP3 (+3R); fixed SL at initial stop (-1R). No BE move.
+     * Plan C: Scale out 1/3 at TP1 (+1R) + BE stop, dynamic 0.5R trailing stop,
+       1/3 at TP2 with TP1 floor, 1/3 at TP3 (+3R), 4h max horizon.
+   - Capacity: Controlled concurrent slots (e.g. 5 positions max).
+   - Filtering: Top-tier score priority (highest composite score first).
+   - Friction: Bybit Perps taker fees (0.055% open + 0.055% close = 0.11% notional).
    ========================================================================== */
 
 (function(exports) {
@@ -17,8 +23,9 @@
 
   const DEFAULT_OPTIONS = {
     startingCapital: 10000,
-    dailyDdLimitPct: 0.04,     // 4% daily limit
-    overallDdLimitPct: 0.08,   // 8% total account limit
+    plan: 'C',                 // 'A', 'B', or 'C'
+    dailyDdLimitPct: 0.04,     // 4% daily closed loss limit
+    overallDdLimitPct: 0.08,   // 8% total account limit evaluated at midnight UTC
     maxConcurrentSlots: 5,     // 5 positions max
     riskPctPerTrade: 0.01,     // 1% risk ($100 on $10k)
     minScore: 85,              // top signals priority filter
@@ -32,9 +39,133 @@
     return new Date(timestampMs).toISOString().slice(0, 10);
   }
 
+  function buildEmptySimulationResult(opts) {
+    const startingCapital = Number(opts.startingCapital) || 10000;
+    const dailyLimit = Number(opts.dailyDdLimitPct) || 0.04;
+    const overallLimit = Number(opts.overallDdLimitPct) || 0.08;
+    const maxSlots = Number(opts.maxConcurrentSlots) || 5;
+    const plan = (opts.plan || 'C').toUpperCase();
+    const todayStr = getUtcDay(Date.now());
+    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    const now = new Date();
+    const currentYear = now.getUTCFullYear();
+    const currentMonth = now.getUTCMonth();
+    const monthName = now.toLocaleString('en-US', { month: 'long', timeZone: 'UTC' });
+
+    return {
+      plan,
+      summary: {
+        startingCapital,
+        currentBalance: startingCapital,
+        currentEquity: startingCapital,
+        netProfit: 0,
+        netRoiPct: 0,
+        totalTrades: 0,
+        activeTradesCount: 0,
+        maxSlots,
+        wins: 0,
+        losses: 0,
+        winRatePct: 0,
+        profitFactor: 1.0,
+        totalFeesPaid: 0,
+        maxDailyDdEncounteredPct: 0,
+        maxOverallDdEncounteredPct: 0,
+        dailyLimitPct: dailyLimit * 100,
+        overallLimitPct: overallLimit * 100,
+        dailyBufferDollars: startingCapital * dailyLimit,
+        dailyLimitDollars: startingCapital * dailyLimit,
+        currentDailyLoss: 0,
+        dailyUsedPct: 0,
+        overallBufferDollars: startingCapital * overallLimit,
+        overallLimitDollars: startingCapital * overallLimit,
+        currentOverallLoss: 0,
+        overallUsedPct: 0,
+        isDailyHalted: false,
+        isAccountBreached: false,
+        todayNetPnl: 0,
+        todayNetPct: 0,
+        currentUtcDay: todayStr,
+        statusText: 'Funded / Active (No End Target)'
+      },
+      objectives: {
+        dailyDdLevel: startingCapital - startingCapital * dailyLimit,
+        dailyDdLeft: startingCapital * dailyLimit,
+        dailyUsedPct: 0,
+        maxDdLevel: startingCapital * (1 - overallLimit),
+        maxDdLeft: startingCapital * overallLimit,
+        maxUsedPct: 0,
+        growthNetProfit: 0,
+        growthRoiPct: 0
+      },
+      stats: {
+        tradingDaysCount: 0,
+        minTradingDays: 0,
+        mostTradedAsset: '--',
+        avgWin: 0,
+        avgLoss: 0,
+        avgRWin: 0,
+        avgRLoss: 0,
+        avgRealizedRr: 1.0,
+        profitSplit: 80,
+        accountPhase: 'Funded Live Account (No End Target)',
+        avgTradePnl: 0,
+        avgDailyPnl: 0,
+        avgWinDay: 0,
+        avgLossDay: 0,
+        bestTrade: null,
+        worstTrade: null,
+        maxWinStreak: 0,
+        maxLossStreak: 0,
+        maxWinDays: 0,
+        maxLossDays: 0,
+        profitableDaysPct: 0,
+        avgTradesPerDay: 0,
+        totalVolumeUsdt: 0
+      },
+      sessions: {
+        london: { name: 'London (07:00 - 13:00)', trades: 0, wins: 0, losses: 0, netPnl: 0, winRatePct: 0, pnlPct: 0 },
+        newyork: { name: 'New York (13:00 - 22:00)', trades: 0, wins: 0, losses: 0, netPnl: 0, winRatePct: 0, pnlPct: 0 },
+        asia: { name: 'Asia (00:00 - 06:00)', trades: 0, wins: 0, losses: 0, netPnl: 0, winRatePct: 0, pnlPct: 0 },
+        other: { name: 'Outside / Other', trades: 0, wins: 0, losses: 0, netPnl: 0, winRatePct: 0, pnlPct: 0 }
+      },
+      weekdayDistribution: dayNames.map(day => ({ day, trades: 0, wins: 0, losses: 0, netPnl: 0 })),
+      longShortStats: {
+        longsCount: 0,
+        longWins: 0,
+        longLosses: 0,
+        longWinRate: 0,
+        longNetPnl: 0,
+        shortsCount: 0,
+        shortWins: 0,
+        shortLosses: 0,
+        shortWinRate: 0,
+        shortNetPnl: 0
+      },
+      calendar: {
+        currentYear,
+        currentMonth: currentMonth + 1,
+        monthName,
+        calendarDays: [],
+        weekTotals: {},
+        bestWeek: null,
+        worstWeek: null,
+        bestMonthNetPnl: 0,
+        worstMonthNetPnl: 0,
+        winningDaysCount: 0,
+        losingDaysCount: 0
+      },
+      curvePoints: [{ time: Date.now(), balance: startingCapital, netPnl: 0 }],
+      activePositions: [],
+      closedTrades: [],
+      dailyLedger: []
+    };
+  }
+
   function simulate(signals, options = {}) {
     const opts = { ...DEFAULT_OPTIONS, ...options };
     const startingCapital = Number(opts.startingCapital) || 10000;
+    const plan = (opts.plan || 'C').toUpperCase();
     const dailyLimit = Number(opts.dailyDdLimitPct) || 0.04;
     const overallLimit = Number(opts.overallDdLimitPct) || 0.08;
     const maxSlots = Number(opts.maxConcurrentSlots) || 5;
@@ -45,7 +176,7 @@
     const liveMarks = opts.liveMarks || {};
 
     let capital = startingCapital;
-    let peakCapital = startingCapital;
+    let peakDailyClosingCapital = startingCapital;
     let maxOverallDdEncountered = 0;
     let maxDailyDdEncountered = 0;
     let accountBreached = false;
@@ -83,38 +214,7 @@
       .filter(s => Number(s.score) >= minScore);
 
     if (!validSignals.length) {
-      const today = getUtcDay(Date.now());
-      return {
-        summary: {
-          startingCapital,
-          currentBalance: capital,
-          currentEquity: capital,
-          netProfit: 0,
-          netRoiPct: 0,
-          totalTrades: 0,
-          activeTradesCount: 0,
-          maxSlots,
-          wins: 0,
-          losses: 0,
-          winRatePct: 0,
-          profitFactor: 1.0,
-          totalFeesPaid: 0,
-          maxDailyDdEncounteredPct: 0,
-          maxOverallDdEncounteredPct: 0,
-          dailyLimitPct: dailyLimit * 100,
-          overallLimitPct: overallLimit * 100,
-          dailyBufferDollars: startingCapital * dailyLimit,
-          overallBufferDollars: startingCapital * overallLimit,
-          isDailyHalted: false,
-          isAccountBreached: false,
-          todayNetPnl: 0,
-          todayNetPct: 0,
-          currentUtcDay: today
-        },
-        activePositions: [],
-        closedTrades: [],
-        dailyLedger: []
-      };
+      return buildEmptySimulationResult(opts);
     }
 
     // Determine event boundaries
@@ -157,9 +257,20 @@
         if (currentUtcDay && dailyLedger.has(currentUtcDay)) {
           dailyLedger.get(currentUtcDay).endCapital = capital;
         }
+
+        // Rule 1: Max drawdown is updated every midnight UTC as the final loss of that day is added (not floating loss)
+        if (capital > peakDailyClosingCapital) peakDailyClosingCapital = capital;
+        const midnightDd = peakDailyClosingCapital > 0 ? (peakDailyClosingCapital - capital) / peakDailyClosingCapital : 0;
+        if (midnightDd > maxOverallDdEncountered) maxOverallDdEncountered = midnightDd;
+
+        // Account floor: 8% max loss from starting capital ($9,200 floor)
+        if (capital <= startingCapital * (1 - overallLimit)) {
+          accountBreached = true;
+        }
+
         currentUtcDay = ev.dateStr;
         dayStartCapital = capital;
-        dailyHalted = false;
+        dailyHalted = false; // Rule 1: Daily drawdown clock strictly resets at midnight UTC
         getDayRecord(currentUtcDay, dayStartCapital);
         idx++;
         continue;
@@ -170,15 +281,9 @@
         activeTrades.delete(trade.id);
         capital += trade.netPnl;
 
-        if (capital > peakCapital) peakCapital = capital;
-        const totalDd = (peakCapital - capital) / peakCapital;
-        if (totalDd > maxOverallDdEncountered) maxOverallDdEncountered = totalDd;
-        if ((startingCapital - capital) / startingCapital >= overallLimit) {
-          accountBreached = true;
-        }
-
+        // Rule 1: Daily drawdown is calculated when a trade closes, not running loss
         const dayLoss = Math.max(0, dayStartCapital - capital);
-        const dayDd = dayLoss / dayStartCapital;
+        const dayDd = dayStartCapital > 0 ? dayLoss / dayStartCapital : 0;
         if (dayDd > maxDailyDdEncountered) maxDailyDdEncountered = dayDd;
 
         const dayRec = getDayRecord(currentUtcDay, dayStartCapital);
@@ -235,8 +340,39 @@
           const margin = notional / leverage;
           const fee = notional * feeRate;
 
-          if (sig.status === 'resolved' && sig.outcome_c != null) {
-            const outcomeR = Number(sig.outcome_c);
+          // Determine outcome multiple based on account's execution plan (A, B, or C)
+          let outcomeR = null;
+          let exitReason = 'resolved';
+
+          if (plan === 'A') {
+            outcomeR = sig.outcome_a != null ? Number(sig.outcome_a) : null;
+            if (outcomeR != null) {
+              if (outcomeR >= 2.0) exitReason = 'TP2 (+2R) Full Win';
+              else if (outcomeR === 0) exitReason = 'TP1 Breakeven';
+              else if (outcomeR <= -1.0) exitReason = 'Initial SL';
+              else exitReason = sig.exit_reason || 'Plan A Exit';
+            }
+          } else if (plan === 'B') {
+            outcomeR = sig.outcome_b != null ? Number(sig.outcome_b) : null;
+            if (outcomeR != null) {
+              if (outcomeR >= 3.0) exitReason = 'TP3 (+3R) Runner';
+              else if (outcomeR <= -1.0) exitReason = 'Initial SL';
+              else exitReason = sig.exit_reason || 'Plan B Exit';
+            }
+          } else { // Plan C
+            outcomeR = sig.outcome_c != null ? Number(sig.outcome_c)
+              : (sig.outcome_a != null ? Number(sig.outcome_a) : null);
+            if (outcomeR != null) {
+              if (outcomeR >= 3.0) exitReason = 'TP3 Full Winner';
+              else if (outcomeR >= 2.0) exitReason = 'TP2 Winner';
+              else if (outcomeR >= 0.33) exitReason = 'Dynamic Trail Hit';
+              else if (outcomeR === 0) exitReason = 'TP1 Breakeven';
+              else if (outcomeR <= -1.0) exitReason = 'Initial SL';
+              else exitReason = sig.exit_reason || 'Plan C Exit';
+            }
+          }
+
+          if (sig.status === 'resolved' && outcomeR != null) {
             const grossPnl = riskDollar * outcomeR;
             const netPnl = grossPnl - fee;
             const durMin = sig.duration_min != null ? Number(sig.duration_min)
@@ -256,8 +392,12 @@
               exitTime,
               duration_min: durMin,
               status: 'resolved',
-              exit_reason: sig.exit_reason || 'resolved',
-              outcome_c: outcomeR,
+              exit_reason: exitReason,
+              plan,
+              outcome_r: outcomeR,
+              outcome_a: sig.outcome_a,
+              outcome_b: sig.outcome_b,
+              outcome_c: sig.outcome_c,
               riskDollar, notional, margin, fee, grossPnl, netPnl,
               created_at: sig.created_at,
               resolved_at: sig.resolved_at
@@ -289,6 +429,10 @@
               duration_min: durMin,
               status: 'open',
               exit_reason: 'open',
+              plan,
+              outcome_r: null,
+              outcome_a: null,
+              outcome_b: null,
               outcome_c: null,
               riskDollar, notional, margin, fee, grossPnl: 0, netPnl: 0,
               created_at: sig.created_at,
@@ -315,20 +459,31 @@
         const unFee = trade.notional * feeRate;
         const unNet = unGross - unFee;
 
-        // Plan C dynamic trailing stop status
+        // Trailing stop status based on plan
         const tp1Level = trade.entry + trade.direction * 1.0 * risk;
         const tp2Level = trade.entry + trade.direction * 2.0 * risk;
+        const tp3Level = trade.entry + trade.direction * 3.0 * risk;
         const tp1Hit = trade.direction === 1 ? mark >= tp1Level : mark <= tp1Level;
         const tp2Hit = trade.direction === 1 ? mark >= tp2Level : mark <= tp2Level;
 
         let trailingStatus = 'Initial SL';
         let currentTrailingStop = trade.stop;
-        if (tp2Hit) {
-          trailingStatus = 'Trail TP1 Ratchet';
-          currentTrailingStop = tp1Level;
-        } else if (tp1Hit) {
-          trailingStatus = 'Trail 0.5R (SL @ BE)';
-          currentTrailingStop = trade.entry;
+
+        if (plan === 'A') {
+          if (tp1Hit) {
+            trailingStatus = 'SL @ Breakeven (0R)';
+            currentTrailingStop = trade.entry;
+          }
+        } else if (plan === 'B') {
+          trailingStatus = 'Fixed 3R Target';
+        } else { // Plan C
+          if (tp2Hit) {
+            trailingStatus = 'Trail TP1 Ratchet';
+            currentTrailingStop = tp1Level;
+          } else if (tp1Hit) {
+            trailingStatus = 'Trail 0.5R (SL @ BE)';
+            currentTrailingStop = trade.entry;
+          }
         }
 
         unrealizedGrossSum += unGross;
@@ -344,11 +499,13 @@
           currentTrailingStop,
           trailingStatus,
           tp1Level,
-          tp2Level
+          tp2Level,
+          tp3Level
         });
       }
     }
 
+    // Closed capital is our realized ledger balance
     const currentEquity = capital + (unrealizedGrossSum - unrealizedFeeSum);
     const netProfit = currentEquity - startingCapital;
     const netRoiPct = (netProfit / startingCapital) * 100;
@@ -357,24 +514,33 @@
     const todayRec = dailyLedger.get(todayStr) || { startCapital: dayStartCapital };
     const todayStartCap = todayRec.startCapital || dayStartCapital;
     const todayNetPnl = currentEquity - todayStartCap;
-    const todayNetPct = (todayNetPnl / todayStartCap) * 100;
+    const todayNetPct = todayStartCap > 0 ? (todayNetPnl / todayStartCap) * 100 : 0;
 
-    const currentDailyDd = Math.max(0, todayStartCap - currentEquity) / todayStartCap;
+    // Rule 1: Daily Drawdown is calculated when a trade closes (realized closed loss today)
+    const todayClosedLoss = Math.max(0, todayStartCap - capital);
+    const currentDailyDd = todayStartCap > 0 ? todayClosedLoss / todayStartCap : 0;
     if (currentDailyDd > maxDailyDdEncountered) maxDailyDdEncountered = currentDailyDd;
 
     const dailyLimitDollars = todayStartCap * dailyLimit;
-    const currentDailyLoss = Math.max(0, todayStartCap - currentEquity);
-    const dailyBufferDollars = Math.max(0, dailyLimitDollars - currentDailyLoss);
-    const dailyUsedPct = Math.min(100, (currentDailyLoss / dailyLimitDollars) * 100);
+    const dailyBufferDollars = Math.max(0, dailyLimitDollars - todayClosedLoss);
+    const dailyUsedPct = Math.min(100, (todayClosedLoss / dailyLimitDollars) * 100);
 
+    // Rule 1: Max drawdown is updated every midnight UTC on closing capital (not floating loss)
     const overallLimitDollars = startingCapital * overallLimit;
-    const currentOverallLoss = Math.max(0, peakCapital - currentEquity);
-    const overallBufferDollars = Math.max(0, overallLimitDollars - currentOverallLoss);
+    const currentOverallLoss = Math.max(0, startingCapital - capital);
+    const overallBufferDollars = Math.max(0, capital - (startingCapital * (1 - overallLimit)));
     const overallUsedPct = Math.min(100, (currentOverallLoss / overallLimitDollars) * 100);
 
-    const targetProfitDollars = startingCapital * 0.08; // 8% Phase 1 target = $800
-    const targetProfitLeft = Math.max(0, targetProfitDollars - netProfit);
-    const targetProgressPct = Math.min(100, Math.max(0, (netProfit / targetProfitDollars) * 100));
+    // Rule 3: No phase 1 limit or ceiling
+    const isDailyHalted = dailyHalted || todayClosedLoss >= dailyLimitDollars;
+    const isAccountBreached = accountBreached || capital <= startingCapital * (1 - overallLimit);
+
+    let statusText = 'Funded / Active (No End Target)';
+    if (isAccountBreached) {
+      statusText = 'Breached (8% DD Floor)';
+    } else if (isDailyHalted) {
+      statusText = 'Halted (4% Daily Limit)';
+    }
 
     // Wins and Losses metrics
     const wins = closedTrades.filter(t => t.netPnl > 0);
@@ -390,8 +556,8 @@
     const worstTrade = closedTrades.length ? closedTrades.reduce((min, t) => t.netPnl < min.netPnl ? t : min, closedTrades[0]) : null;
 
     // Realized R:R metrics
-    const avgRWin = wins.length ? wins.reduce((s, t) => s + Number(t.outcome_c), 0) / wins.length : 0;
-    const avgRLoss = losses.length ? Math.abs(losses.reduce((s, t) => s + Number(t.outcome_c), 0)) / losses.length : 1;
+    const avgRWin = wins.length ? wins.reduce((s, t) => s + Number(t.outcome_r || 0), 0) / wins.length : 0;
+    const avgRLoss = losses.length ? Math.abs(losses.reduce((s, t) => s + Number(t.outcome_r || 0), 0)) / losses.length : 1;
     const avgRealizedRr = avgRLoss ? (avgRWin / avgRLoss) : avgRWin;
 
     // Asset frequency
@@ -509,10 +675,9 @@
     // Calendar month/week breakdown
     const now = new Date();
     const currentYear = now.getUTCFullYear();
-    const currentMonth = now.getUTCMonth(); // 0-indexed
+    const currentMonth = now.getUTCMonth();
     const monthName = now.toLocaleString('en-US', { month: 'long', timeZone: 'UTC' });
 
-    // Days in current month
     const totalDaysInMonth = new Date(Date.UTC(currentYear, currentMonth + 1, 0)).getUTCDate();
     const calendarDays = [];
     const weekTotals = { 1: { netPnl: 0, trades: 0 }, 2: { netPnl: 0, trades: 0 }, 3: { netPnl: 0, trades: 0 }, 4: { netPnl: 0, trades: 0 }, 5: { netPnl: 0, trades: 0 } };
@@ -548,12 +713,12 @@
       });
     }
 
-    // Best/Worst Week and Month
     const weekEntries = Object.entries(weekTotals).filter(([_, w]) => w.trades > 0);
     const bestWeek = weekEntries.length ? weekEntries.reduce((max, [k, v]) => v.netPnl > max.netPnl ? { week: k, ...v } : max, { week: weekEntries[0][0], ...weekEntries[0][1] }) : null;
     const worstWeek = weekEntries.length ? weekEntries.reduce((min, [k, v]) => v.netPnl < min.netPnl ? { week: k, ...v } : min, { week: weekEntries[0][0], ...weekEntries[0][1] }) : null;
 
     return {
+      plan,
       summary: {
         startingCapital,
         currentBalance: capital,
@@ -574,35 +739,32 @@
         overallLimitPct: overallLimit * 100,
         dailyBufferDollars,
         dailyLimitDollars,
-        currentDailyLoss,
+        currentDailyLoss: todayClosedLoss,
         dailyUsedPct,
         overallBufferDollars,
         overallLimitDollars,
         currentOverallLoss,
         overallUsedPct,
-        targetProfitDollars,
-        targetProfitLeft,
-        targetProgressPct,
-        isDailyHalted: dailyHalted || currentDailyDd >= dailyLimit,
-        isAccountBreached: accountBreached || (startingCapital - currentEquity) / startingCapital >= overallLimit,
+        isDailyHalted,
+        isAccountBreached,
         todayNetPnl,
         todayNetPct,
-        currentUtcDay: todayStr
+        currentUtcDay: todayStr,
+        statusText
       },
       objectives: {
         dailyDdLevel: todayStartCap - dailyLimitDollars,
         dailyDdLeft: dailyBufferDollars,
         dailyUsedPct,
-        maxDdLevel: startingCapital - overallLimitDollars,
+        maxDdLevel: startingCapital * (1 - overallLimit),
         maxDdLeft: overallBufferDollars,
         maxUsedPct: overallUsedPct,
-        targetProfitLevel: startingCapital + targetProfitDollars,
-        targetProfitLeft,
-        targetProgressPct
+        growthNetProfit: netProfit,
+        growthRoiPct: netRoiPct
       },
       stats: {
         tradingDaysCount: tradingDays.length,
-        minTradingDays: 3,
+        minTradingDays: 0,
         mostTradedAsset,
         avgWin,
         avgLoss,
@@ -610,7 +772,7 @@
         avgRLoss,
         avgRealizedRr,
         profitSplit: 80,
-        accountPhase: 'Evaluation, Phase 1',
+        accountPhase: 'Funded Live Account (No End Target)',
         avgTradePnl: closedTrades.length ? netProfit / closedTrades.length : 0,
         avgDailyPnl: tradingDays.length ? netProfit / tradingDays.length : 0,
         avgWinDay: winningDays.length ? winningDays.reduce((s, d) => s + d.netPnl, 0) / winningDays.length : 0,
@@ -659,9 +821,18 @@
     };
   }
 
+  function simulateMulti(signals, options = {}) {
+    return {
+      planA: simulate(signals, { ...options, plan: 'A' }),
+      planB: simulate(signals, { ...options, plan: 'B' }),
+      planC: simulate(signals, { ...options, plan: 'C' })
+    };
+  }
+
   exports.PortfolioSimulator = {
     DEFAULT_OPTIONS,
-    simulate
+    simulate,
+    simulateMulti
   };
 
   if (typeof module !== 'undefined' && module.exports) {
