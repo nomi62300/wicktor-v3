@@ -166,6 +166,111 @@
     };
   }
 
+  // Conviction Harvest Exit:
+  // - For Score < 87: Standard Plan C (1/3 @ 1R BE, 1/3 @ 2R, 1/3 @ 3R, 0.5R dynamic trail, 4h max)
+  // - For Score >= 87: Dual Target Conviction Harvest (1R -> BE; 50% TP @ 2R with SL -> +1R floor & 1.0R trail; remaining 50% aims for 3.5R runner; 8h max horizon)
+  function computeConvictionExit(sig) {
+    const score = Number(sig.score);
+    const isHighConviction = score >= 87;
+
+    if (Array.isArray(sig.path) && sig.path.length > 0) {
+      const entry = Number(sig.entry);
+      const stop = Number(sig.stop);
+      const dir = Number(sig.direction);
+      const risk = Math.abs(entry - stop);
+      if (!risk) return { outcomeR: 0, exitReason: 'invalid_risk', durationMin: 240 };
+
+      const maxBars = isHighConviction ? 96 : 48;
+      const window = sig.path.slice(0, maxBars);
+
+      let stopR = -1;
+      let remaining = 1.0;
+      let realised = 0;
+      let maxFavR = 0;
+      let tp1Taken = false;
+      let tp2Taken = false;
+
+      for (let idx = 0; idx < window.length; idx++) {
+        const b = window[idx];
+        const h = Number(b[2]);
+        const l = Number(b[3]);
+
+        let trailDist = 0.5;
+        if (isHighConviction && tp2Taken) {
+          trailDist = 1.0;
+        }
+
+        if (tp1Taken) {
+          const trR = maxFavR - trailDist;
+          if (trR > stopR) stopR = trR;
+        }
+
+        const stopPx = entry + dir * stopR * risk;
+        const stopHit = dir === 1 ? l <= stopPx : h >= stopPx;
+        if (stopHit) {
+          realised += remaining * stopR;
+          const reason = stopR > 0 ? (stopR >= 1.0 ? 'Trail (+1R Floor)' : 'Dynamic Trail Hit') : (stopR >= 0 ? 'TP1 Breakeven' : 'Initial SL');
+          return { outcomeR: realised, exitReason: reason, durationMin: (idx + 1) * 5 };
+        }
+
+        const favPx = dir === 1 ? h : l;
+        const barFavR = (dir * (favPx - entry)) / risk;
+        if (barFavR > maxFavR) maxFavR = barFavR;
+
+        // TP1 (1.0R)
+        if (!tp1Taken && maxFavR >= 1.0) {
+          if (!isHighConviction) {
+            const take = 1 / 3;
+            realised += take * 1.0;
+            remaining -= take;
+          }
+          tp1Taken = true;
+          if (stopR < 0.0) stopR = 0.0;
+        }
+
+        // TP2 (2.0R)
+        if (tp1Taken && !tp2Taken && maxFavR >= 2.0) {
+          const take = isHighConviction ? 0.5 : (1 / 3);
+          realised += take * 2.0;
+          remaining -= take;
+          tp2Taken = true;
+          if (stopR < 1.0) stopR = 1.0;
+        }
+
+        // Target for high conviction: 3.5R runner harvest
+        if (isHighConviction && tp2Taken && maxFavR >= 3.5) {
+          realised += remaining * 3.5;
+          return { outcomeR: realised, exitReason: 'Target 3.5R Harvest', durationMin: (idx + 1) * 5 };
+        }
+
+        // Standard Plan C target: 3.0R
+        if (!isHighConviction && tp2Taken && maxFavR >= 3.0) {
+          realised += remaining * 3.0;
+          return { outcomeR: realised, exitReason: 'TP3 Full Winner', durationMin: (idx + 1) * 5 };
+        }
+      }
+
+      const last = window[window.length - 1];
+      const closePx = Number(last[4]);
+      realised += remaining * ((dir * (closePx - entry)) / risk);
+      return { outcomeR: realised, exitReason: 'Timeout', durationMin: window.length * 5 };
+    }
+
+    // Fallback if no path stored:
+    const outcomeC = sig.outcome_c != null ? Number(sig.outcome_c) : (sig.outcome_a != null ? Number(sig.outcome_a) : 0);
+    if (!isHighConviction) {
+      return { outcomeR: outcomeC, exitReason: sig.exit_reason || 'Plan C Exit', durationMin: sig.duration_min || 240 };
+    }
+    const outcomeB = sig.outcome_b != null ? Number(sig.outcome_b) : 0;
+    if (outcomeB >= 3.0) {
+      return { outcomeR: 2.75, exitReason: 'Target 3.5R Harvest', durationMin: 480 };
+    }
+    if (outcomeC >= 2.0 || sig.tp2_hit) {
+      return { outcomeR: 1.50, exitReason: 'TP2 (+2R) Harvest', durationMin: 360 };
+    }
+    return { outcomeR: outcomeC, exitReason: sig.exit_reason || 'Plan C Exit', durationMin: sig.duration_min || 240 };
+  }
+
   function simulate(signals, options = {}) {
     const opts = { ...DEFAULT_OPTIONS, ...options };
     const startingCapital = Number(opts.startingCapital) || 10000;
@@ -377,6 +482,10 @@
               else if (outcomeR <= -1.0) exitReason = 'Initial SL';
               else exitReason = sig.exit_reason || 'Plan B Exit';
             }
+          } else if (plan === 'H' || plan === 'CONVICTION') {
+            const hRes = computeConvictionExit(sig);
+            outcomeR = hRes.outcomeR;
+            exitReason = hRes.exitReason;
           } else { // Plan C
             outcomeR = sig.outcome_c != null ? Number(sig.outcome_c)
               : (sig.outcome_a != null ? Number(sig.outcome_a) : null);
@@ -393,9 +502,14 @@
           if (sig.status === 'resolved' && outcomeR != null) {
             const grossPnl = riskDollar * outcomeR;
             const netPnl = grossPnl - fee;
-            const durMin = sig.duration_min != null ? Number(sig.duration_min)
-              : (sig.resolved_bar_time && sig.bar_time ? Math.round((sig.resolved_bar_time - sig.bar_time) / 60000) : 240);
-            const exitTime = sig.resolved_bar_time || (sig.bar_time + durMin * 60000);
+            const isPlanH = plan === 'H' || plan === 'CONVICTION';
+            const durMin = isPlanH
+              ? (computeConvictionExit(sig).durationMin || 240)
+              : (sig.duration_min != null ? Number(sig.duration_min)
+                : (sig.resolved_bar_time && sig.bar_time ? Math.round((sig.resolved_bar_time - sig.bar_time) / 60000) : 240));
+            const exitTime = (isPlanH && sig.bar_time)
+              ? (sig.bar_time + durMin * 60000)
+              : (sig.resolved_bar_time || (sig.bar_time + durMin * 60000));
 
             const trade = {
               id: sig.id,
@@ -849,7 +963,8 @@
       planA_wm: simulate(signals, { ...options, plan: 'A', wmFilter: 'combined' }),
       planB_wm: simulate(signals, { ...options, plan: 'B', wmFilter: 'combined' }),
       planC_wm: simulate(signals, { ...options, plan: 'C', wmFilter: 'combined' }),
-      planC_wm_perp: simulate(signals, { ...options, plan: 'C', wmFilter: 'combined', marketFilter: 'PERP' })
+      planC_wm_perp: simulate(signals, { ...options, plan: 'C', wmFilter: 'combined', marketFilter: 'PERP' }),
+      planH_wm_perp: simulate(signals, { ...options, plan: 'H', wmFilter: 'combined', marketFilter: 'PERP' })
     };
   }
 

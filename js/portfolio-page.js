@@ -180,7 +180,8 @@
       A_WM: { num: 4, name: 'Plan A (WM Combined)', code: 'A-WMC', avatar: '🌪️', sub: '1R Breakeven · 2R Target · $10,000 USDT · WM Combined Momentum (All Sub-Filters)' },
       B_WM: { num: 5, name: 'Plan B (WM Combined)', code: 'B-WMC', avatar: '🚀', sub: 'Pure 3R Runner · Fixed Stop · $10,000 USDT · WM Combined Momentum (All Sub-Filters)' },
       C_WM: { num: 6, name: 'Plan C (WM Combined)', code: 'C-WMC', avatar: '💎', sub: 'Dynamic 0.5R Trail · Scale-Out · $10,000 USDT · WM Combined Momentum (All Sub-Filters)' },
-      C_WM_PERP: { num: 7, name: 'Plan C (WM Perps Only)', code: 'C-PERP', avatar: '🔥', sub: 'Dynamic 0.5R Trail · Scale-Out · $10,000 USDT · WM Combined · Bybit PERPs Only' }
+      C_WM_PERP: { num: 7, name: 'Plan C (WM Perps Only)', code: 'C-PERP', avatar: '🔥', sub: 'Dynamic 0.5R Trail · Scale-Out · $10,000 USDT · WM Combined · Bybit PERPs Only' },
+      H_WM_PERP: { num: 8, name: 'Conviction Harvest (WM Perps Only)', code: 'H-PERP', avatar: '🎯', sub: 'Score-Adaptive · Dual Target 2R/3.5R (Score ≥87) · $10,000 USDT · WM Combined · Bybit PERPs Only' }
     }[planKey] || { num: 3, name: 'Plan C', code: 'C', avatar: '⚡', sub: '$10,000 USDT' };
 
     if (avatarEl) avatarEl.textContent = meta.avatar;
@@ -304,14 +305,15 @@
       case 'B_WM': return state.multiSim.planB_wm;
       case 'C_WM': return state.multiSim.planC_wm;
       case 'C_WM_PERP': return state.multiSim.planC_wm_perp;
+      case 'H_WM_PERP': return state.multiSim.planH_wm_perp;
       default: return state.multiSim.planC;
     }
   }
 
-  // Update mini metrics on account switcher pills (All 7 Accounts)
+  // Update mini metrics on account switcher pills (All 8 Accounts)
   function renderPillBadges() {
     if (!state.multiSim) return;
-    const { planA, planB, planC, planA_wm, planB_wm, planC_wm, planC_wm_perp } = state.multiSim;
+    const { planA, planB, planC, planA_wm, planB_wm, planC_wm, planC_wm_perp, planH_wm_perp } = state.multiSim;
 
     const updatePill = (k, sim) => {
       if (!sim) return;
@@ -333,9 +335,9 @@
         } else if (sim.summary.isDailyHalted) {
           badgeEl.className = 'prop-badge-halted';
           badgeEl.textContent = 'Daily Halted';
-        } else if (k === 'C_WM_PERP') {
+        } else if (k === 'C_WM_PERP' || k === 'H_WM_PERP') {
           badgeEl.className = 'prop-badge-perp';
-          badgeEl.textContent = 'Active · Perps Only';
+          badgeEl.textContent = k === 'H_WM_PERP' ? 'Active · Conviction' : 'Active · Perps Only';
         } else {
           badgeEl.className = k.includes('WM') ? 'prop-badge-wm' : 'prop-badge-active';
           badgeEl.textContent = k.includes('WM') ? 'Active · WM' : 'Active (Live)';
@@ -350,14 +352,15 @@
     updatePill('B_WM', planB_wm);
     updatePill('C_WM', planC_wm);
     updatePill('C_WM_PERP', planC_wm_perp);
+    updatePill('H_WM_PERP', planH_wm_perp);
   }
 
-  // Render Side-by-Side 7-Account Comparison Table
+  // Render Side-by-Side 8-Account Comparison Table
   function renderComparisonTable() {
     if (!compareTbody || !state.multiSim) return;
-    const { planA, planB, planC, planA_wm, planB_wm, planC_wm, planC_wm_perp } = state.multiSim;
+    const { planA, planB, planC, planA_wm, planB_wm, planC_wm, planC_wm_perp, planH_wm_perp } = state.multiSim;
 
-    const row = (label, aVal, bVal, cVal, aWmVal, bWmVal, cWmVal, cWmPerpVal, isMono = true) => `
+    const row = (label, aVal, bVal, cVal, aWmVal, bWmVal, cWmVal, cWmPerpVal, hWmPerpVal, isMono = true) => `
       <tr>
         <td><strong>${label}</strong></td>
         <td ${isMono ? 'class="mono"' : ''}>${aVal}</td>
@@ -367,6 +370,7 @@
         <td ${isMono ? 'class="mono"' : ''} style="background:rgba(6,182,212,0.03);">${bWmVal}</td>
         <td ${isMono ? 'class="mono"' : ''} style="background:rgba(6,182,212,0.03);">${cWmVal}</td>
         <td ${isMono ? 'class="mono"' : ''} style="background:rgba(239,68,68,0.04);">${cWmPerpVal}</td>
+        <td ${isMono ? 'class="mono"' : ''} style="background:rgba(16,185,129,0.04);">${hWmPerpVal}</td>
       </tr>`;
 
     compareTbody.innerHTML =
@@ -376,49 +380,59 @@
                             `<span style="color:${rColor(planA_wm.summary.netProfit)}">${fmtDollar(planA_wm.summary.netProfit)}</span>`,
                             `<span style="color:${rColor(planB_wm.summary.netProfit)}">${fmtDollar(planB_wm.summary.netProfit)}</span>`,
                             `<span style="color:${rColor(planC_wm.summary.netProfit)}">${fmtDollar(planC_wm.summary.netProfit)}</span>`,
-                            `<span style="color:${rColor(planC_wm_perp.summary.netProfit)}">${fmtDollar(planC_wm_perp.summary.netProfit)}</span>`) +
+                            `<span style="color:${rColor(planC_wm_perp.summary.netProfit)}">${fmtDollar(planC_wm_perp.summary.netProfit)}</span>`,
+                            `<span style="color:${rColor(planH_wm_perp.summary.netProfit)}">${fmtDollar(planH_wm_perp.summary.netProfit)}</span>`) +
       row('Return on Capital (ROI)', `<span style="color:${rColor(planA.summary.netRoiPct)}">${fmtPercent(planA.summary.netRoiPct)}</span>`,
                                     `<span style="color:${rColor(planB.summary.netRoiPct)}">${fmtPercent(planB.summary.netRoiPct)}</span>`,
                                     `<span style="color:${rColor(planC.summary.netRoiPct)}">${fmtPercent(planC.summary.netRoiPct)}</span>`,
                                     `<span style="color:${rColor(planA_wm.summary.netRoiPct)}">${fmtPercent(planA_wm.summary.netRoiPct)}</span>`,
                                     `<span style="color:${rColor(planB_wm.summary.netRoiPct)}">${fmtPercent(planB_wm.summary.netRoiPct)}</span>`,
                                     `<span style="color:${rColor(planC_wm.summary.netRoiPct)}">${fmtPercent(planC_wm.summary.netRoiPct)}</span>`,
-                                    `<span style="color:${rColor(planC_wm_perp.summary.netRoiPct)}">${fmtPercent(planC_wm_perp.summary.netRoiPct)}</span>`) +
+                                    `<span style="color:${rColor(planC_wm_perp.summary.netRoiPct)}">${fmtPercent(planC_wm_perp.summary.netRoiPct)}</span>`,
+                                    `<span style="color:${rColor(planH_wm_perp.summary.netRoiPct)}">${fmtPercent(planH_wm_perp.summary.netRoiPct)}</span>`) +
       row('Win Rate %', `${planA.summary.winRatePct.toFixed(2)}%`, `${planB.summary.winRatePct.toFixed(2)}%`, `${planC.summary.winRatePct.toFixed(2)}%`,
                         `${planA_wm.summary.winRatePct.toFixed(2)}%`, `${planB_wm.summary.winRatePct.toFixed(2)}%`, `${planC_wm.summary.winRatePct.toFixed(2)}%`,
-                        `${planC_wm_perp.summary.winRatePct.toFixed(2)}%`) +
+                        `${planC_wm_perp.summary.winRatePct.toFixed(2)}%`,
+                        `${planH_wm_perp.summary.winRatePct.toFixed(2)}%`) +
       row('Profit Factor', planA.summary.profitFactor.toFixed(2), planB.summary.profitFactor.toFixed(2), planC.summary.profitFactor.toFixed(2),
                            planA_wm.summary.profitFactor.toFixed(2), planB_wm.summary.profitFactor.toFixed(2), planC_wm.summary.profitFactor.toFixed(2),
-                           planC_wm_perp.summary.profitFactor.toFixed(2)) +
+                           planC_wm_perp.summary.profitFactor.toFixed(2),
+                           planH_wm_perp.summary.profitFactor.toFixed(2)) +
       row('Total Trades (W / L)', `${planA.summary.totalTrades} (${planA.summary.wins}W / ${planA.summary.losses}L)`,
                                   `${planB.summary.totalTrades} (${planB.summary.wins}W / ${planB.summary.losses}L)`,
                                   `${planC.summary.totalTrades} (${planC.summary.wins}W / ${planC.summary.losses}L)`,
                                   `${planA_wm.summary.totalTrades} (${planA_wm.summary.wins}W / ${planA_wm.summary.losses}L)`,
                                   `${planB_wm.summary.totalTrades} (${planB_wm.summary.wins}W / ${planB_wm.summary.losses}L)`,
                                   `${planC_wm.summary.totalTrades} (${planC_wm.summary.wins}W / ${planC_wm.summary.losses}L)`,
-                                  `${planC_wm_perp.summary.totalTrades} (${planC_wm_perp.summary.wins}W / ${planC_wm_perp.summary.losses}L)`) +
+                                  `${planC_wm_perp.summary.totalTrades} (${planC_wm_perp.summary.wins}W / ${planC_wm_perp.summary.losses}L)`,
+                                  `${planH_wm_perp.summary.totalTrades} (${planH_wm_perp.summary.wins}W / ${planH_wm_perp.summary.losses}L)`) +
       row('Avg Realized R:R', planA.stats.avgRealizedRr.toFixed(2), planB.stats.avgRealizedRr.toFixed(2), planC.stats.avgRealizedRr.toFixed(2),
                              planA_wm.stats.avgRealizedRr.toFixed(2), planB_wm.stats.avgRealizedRr.toFixed(2), planC_wm.stats.avgRealizedRr.toFixed(2),
-                             planC_wm_perp.stats.avgRealizedRr.toFixed(2)) +
+                             planC_wm_perp.stats.avgRealizedRr.toFixed(2),
+                             planH_wm_perp.stats.avgRealizedRr.toFixed(2)) +
       row('Daily Drawdown Peak', `${planA.summary.maxDailyDdEncounteredPct.toFixed(2)}%`, `${planB.summary.maxDailyDdEncounteredPct.toFixed(2)}%`, `${planC.summary.maxDailyDdEncounteredPct.toFixed(2)}%`,
                                  `${planA_wm.summary.maxDailyDdEncounteredPct.toFixed(2)}%`, `${planB_wm.summary.maxDailyDdEncounteredPct.toFixed(2)}%`, `${planC_wm.summary.maxDailyDdEncounteredPct.toFixed(2)}%`,
-                                 `${planC_wm_perp.summary.maxDailyDdEncounteredPct.toFixed(2)}%`) +
+                                 `${planC_wm_perp.summary.maxDailyDdEncounteredPct.toFixed(2)}%`,
+                                 `${planH_wm_perp.summary.maxDailyDdEncounteredPct.toFixed(2)}%`) +
       row('Midnight UTC Max DD', `${planA.summary.maxOverallDdEncounteredPct.toFixed(2)}%`, `${planB.summary.maxOverallDdEncounteredPct.toFixed(2)}%`, `${planC.summary.maxOverallDdEncounteredPct.toFixed(2)}%`,
                                  `${planA_wm.summary.maxOverallDdEncounteredPct.toFixed(2)}%`, `${planB_wm.summary.maxOverallDdEncounteredPct.toFixed(2)}%`, `${planC_wm.summary.maxOverallDdEncounteredPct.toFixed(2)}%`,
-                                 `${planC_wm_perp.summary.maxOverallDdEncounteredPct.toFixed(2)}%`) +
+                                 `${planC_wm_perp.summary.maxOverallDdEncounteredPct.toFixed(2)}%`,
+                                 `${planH_wm_perp.summary.maxOverallDdEncounteredPct.toFixed(2)}%`) +
       row('Bybit Fees Paid', fmtDollarPlain(planA.summary.totalFeesPaid), fmtDollarPlain(planB.summary.totalFeesPaid), fmtDollarPlain(planC.summary.totalFeesPaid),
                              fmtDollarPlain(planA_wm.summary.totalFeesPaid), fmtDollarPlain(planB_wm.summary.totalFeesPaid), fmtDollarPlain(planC_wm.summary.totalFeesPaid),
-                             fmtDollarPlain(planC_wm_perp.summary.totalFeesPaid)) +
+                             fmtDollarPlain(planC_wm_perp.summary.totalFeesPaid),
+                             fmtDollarPlain(planH_wm_perp.summary.totalFeesPaid)) +
       row('Best / Worst Trade', `${fmtDollar(planA.stats.bestTrade?.netPnl)} / ${fmtDollar(planA.stats.worstTrade?.netPnl)}`,
                                 `${fmtDollar(planB.stats.bestTrade?.netPnl)} / ${fmtDollar(planB.stats.worstTrade?.netPnl)}`,
                                 `${fmtDollar(planC.stats.bestTrade?.netPnl)} / ${fmtDollar(planC.stats.worstTrade?.netPnl)}`,
                                 `${fmtDollar(planA_wm.stats.bestTrade?.netPnl)} / ${fmtDollar(planA_wm.stats.worstTrade?.netPnl)}`,
                                 `${fmtDollar(planB_wm.stats.bestTrade?.netPnl)} / ${fmtDollar(planB_wm.stats.worstTrade?.netPnl)}`,
                                 `${fmtDollar(planC_wm.stats.bestTrade?.netPnl)} / ${fmtDollar(planC_wm.stats.worstTrade?.netPnl)}`,
-                                `${fmtDollar(planC_wm_perp.stats.bestTrade?.netPnl)} / ${fmtDollar(planC_wm_perp.stats.worstTrade?.netPnl)}`) +
+                                `${fmtDollar(planC_wm_perp.stats.bestTrade?.netPnl)} / ${fmtDollar(planC_wm_perp.stats.worstTrade?.netPnl)}`,
+                                `${fmtDollar(planH_wm_perp.stats.bestTrade?.netPnl)} / ${fmtDollar(planH_wm_perp.stats.worstTrade?.netPnl)}`) +
       row('Account Status', planA.summary.statusText, planB.summary.statusText, planC.summary.statusText,
                             planA_wm.summary.statusText, planB_wm.summary.statusText, planC_wm.summary.statusText,
-                            planC_wm_perp.summary.statusText, false);
+                            planC_wm_perp.summary.statusText, planH_wm_perp.summary.statusText, false);
   }
 
   // Render whichever account is currently selected (A, B, C, A_WM, B_WM, C_WM)
@@ -1117,7 +1131,7 @@
       }
       const headers = { apikey: KEY, Authorization: `Bearer ${KEY}`, Prefer: 'count=exact' };
       const statsRows = await fetchAllRows(
-        `${REST}?select=id,symbol,market,direction,score,trigger_name,context_regime,entry,stop,target,risk_pct,status,outcome_a,outcome_b,outcome_c,exit_reason,tp1_hit,tp2_hit,tp3_hit,tp1_time_min,tp2_time_min,tp3_time_min,duration_min,bar_time,resolved_bar_time,resolved_at,created_at,wm_filter&order=bar_time.asc`,
+        `${REST}?select=id,symbol,market,direction,score,trigger_name,context_regime,entry,stop,target,risk_pct,status,outcome_a,outcome_b,outcome_c,exit_reason,tp1_hit,tp2_hit,tp3_hit,tp1_time_min,tp2_time_min,tp3_time_min,duration_min,bar_time,resolved_bar_time,resolved_at,created_at,wm_filter,path&order=bar_time.asc`,
         headers
       );
       state.statsRows = statsRows;

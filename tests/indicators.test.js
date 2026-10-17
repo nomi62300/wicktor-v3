@@ -819,7 +819,7 @@ test('portfolio: top score priority selects highest score setups and respects co
   assert.deepStrictEqual(takenSymbols, ['TOP1', 'TOP2']);
 });
 
-test('portfolio: multi-account simulation supports 7 accounts (Plan A, B, C baseline, Plan A, B, C with WM filter, and Plan C WM Perps Only)', () => {
+test('portfolio: multi-account simulation supports 8 accounts (Plan A, B, C baseline, Plan A, B, C with WM filter, Plan C WM Perps, and Plan H Conviction Harvest Perps)', () => {
   const t0 = Date.parse('2026-10-15T12:00:00Z');
   const signals = [
     { id: 21, symbol: 'SOLUSDT', market: 'PERP', direction: 1, score: 90, entry: 150, stop: 147, target: 159, risk_pct: 2, bar_time: t0, resolved_bar_time: t0 + 3600000, status: 'resolved', outcome_a: 2.0, outcome_b: 3.0, outcome_c: 1.8, wm_filter: false },
@@ -836,6 +836,8 @@ test('portfolio: multi-account simulation supports 7 accounts (Plan A, B, C base
   assert.strictEqual(multi.planC_wm.plan, 'C');
   assert.strictEqual(multi.planC_wm_perp.plan, 'C');
   assert.strictEqual(multi.planC_wm_perp.marketFilter, 'PERP');
+  assert.strictEqual(multi.planH_wm_perp.plan, 'H');
+  assert.strictEqual(multi.planH_wm_perp.marketFilter, 'PERP');
 
   // Baseline accounts take all 3 signals
   assert.strictEqual(multi.planA.summary.totalTrades, 3);
@@ -847,10 +849,14 @@ test('portfolio: multi-account simulation supports 7 accounts (Plan A, B, C base
   assert.strictEqual(multi.planB_wm.summary.totalTrades, 2);
   assert.strictEqual(multi.planC_wm.summary.totalTrades, 2);
 
-  // Account 7 (Plan C WM Perps Only) strictly takes ONLY ETHUSDT (id: 22) and excludes BTCUSDT spot
+  // Account 7 & Account 8 (Perps Only) strictly take ONLY ETHUSDT (id: 22) and exclude BTCUSDT spot
   assert.strictEqual(multi.planC_wm_perp.summary.totalTrades, 1);
   assert.strictEqual(multi.planC_wm_perp.closedTrades[0].symbol, 'ETHUSDT');
   assert.strictEqual(multi.planC_wm_perp.closedTrades[0].market, 'PERP');
+
+  assert.strictEqual(multi.planH_wm_perp.summary.totalTrades, 1);
+  assert.strictEqual(multi.planH_wm_perp.closedTrades[0].symbol, 'ETHUSDT');
+  assert.strictEqual(multi.planH_wm_perp.closedTrades[0].market, 'PERP');
 });
 
 test('coinview: calculates wmFilter based on 1h/4h velocity and 1h RSI', () => {
