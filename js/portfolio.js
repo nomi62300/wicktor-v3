@@ -24,7 +24,8 @@
   const DEFAULT_OPTIONS = {
     startingCapital: 10000,
     plan: 'C',                 // 'A', 'B', or 'C'
-    wmFilter: false,           // boolean: require Wicktor Momentum Filter
+    wmFilter: false,           // boolean or 'combined'
+    marketFilter: null,        // null (all) or 'PERP' or 'SPOT'
     dailyDdLimitPct: 0.04,     // 4% daily closed loss limit
     overallDdLimitPct: 0.08,   // 8% total account limit evaluated at midnight UTC
     maxConcurrentSlots: 5,     // 5 positions max
@@ -56,7 +57,8 @@
 
     return {
       plan,
-      wmFilter: !!opts.wmFilter,
+      wmFilter: opts.wmFilter || false,
+      marketFilter: opts.marketFilter || null,
       summary: {
         startingCapital,
         currentBalance: startingCapital,
@@ -213,9 +215,11 @@
 
     const wmOpt = opts.wmFilter;
     const requireWm = !!wmOpt;
+    const marketFilter = opts.marketFilter ? String(opts.marketFilter).toUpperCase() : null;
     const validSignals = (signals || [])
       .filter(s => s && s.bar_time && (s.status === 'resolved' || s.status === 'open'))
       .filter(s => Number(s.score) >= minScore)
+      .filter(s => !marketFilter || (s.market && s.market.toUpperCase() === marketFilter))
       .filter(s => {
         if (!requireWm) return true;
         if (wmOpt === 'combined' || wmOpt === true) {
@@ -733,6 +737,8 @@
 
     return {
       plan,
+      wmFilter: opts.wmFilter || false,
+      marketFilter: opts.marketFilter || null,
       summary: {
         startingCapital,
         currentBalance: capital,
@@ -842,7 +848,8 @@
       planC: simulate(signals, { ...options, plan: 'C', wmFilter: false }),
       planA_wm: simulate(signals, { ...options, plan: 'A', wmFilter: 'combined' }),
       planB_wm: simulate(signals, { ...options, plan: 'B', wmFilter: 'combined' }),
-      planC_wm: simulate(signals, { ...options, plan: 'C', wmFilter: 'combined' })
+      planC_wm: simulate(signals, { ...options, plan: 'C', wmFilter: 'combined' }),
+      planC_wm_perp: simulate(signals, { ...options, plan: 'C', wmFilter: 'combined', marketFilter: 'PERP' })
     };
   }
 

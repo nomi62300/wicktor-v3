@@ -1268,6 +1268,28 @@ input:focus-visible {
   font-size: 11px;
   font-weight: 600;
 }
+.prop-account-pill--perp {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.04) 0%, var(--surf) 100%);
+}
+.prop-account-pill--perp:hover {
+  border-color: rgba(239, 68, 68, 0.6);
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.08) 0%, var(--surf2) 100%);
+}
+.prop-account-pill--perp.active {
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.12) 0%, rgba(15, 23, 42, 0.7) 100%);
+  border-color: #ef4444;
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.3);
+}
+.prop-badge-perp {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
 .prop-pill-title {
   display: flex;
   justify-content: space-between;

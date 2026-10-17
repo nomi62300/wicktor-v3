@@ -819,11 +819,12 @@ test('portfolio: top score priority selects highest score setups and respects co
   assert.deepStrictEqual(takenSymbols, ['TOP1', 'TOP2']);
 });
 
-test('portfolio: multi-account simulation supports 6 accounts (Plan A, B, C baseline and Plan A, B, C with WM filter)', () => {
+test('portfolio: multi-account simulation supports 7 accounts (Plan A, B, C baseline, Plan A, B, C with WM filter, and Plan C WM Perps Only)', () => {
   const t0 = Date.parse('2026-10-15T12:00:00Z');
   const signals = [
     { id: 21, symbol: 'SOLUSDT', market: 'PERP', direction: 1, score: 90, entry: 150, stop: 147, target: 159, risk_pct: 2, bar_time: t0, resolved_bar_time: t0 + 3600000, status: 'resolved', outcome_a: 2.0, outcome_b: 3.0, outcome_c: 1.8, wm_filter: false },
-    { id: 22, symbol: 'ETHUSDT', market: 'PERP', direction: 1, score: 92, entry: 2500, stop: 2450, target: 2650, risk_pct: 2, bar_time: t0 + 1000, resolved_bar_time: t0 + 3601000, status: 'resolved', outcome_a: 2.0, outcome_b: 3.0, outcome_c: 2.1, wm_filter: true }
+    { id: 22, symbol: 'ETHUSDT', market: 'PERP', direction: 1, score: 92, entry: 2500, stop: 2450, target: 2650, risk_pct: 2, bar_time: t0 + 1000, resolved_bar_time: t0 + 3601000, status: 'resolved', outcome_a: 2.0, outcome_b: 3.0, outcome_c: 2.1, wm_filter: true },
+    { id: 23, symbol: 'BTCUSDT', market: 'SPOT', direction: 1, score: 91, entry: 65000, stop: 64000, target: 67000, risk_pct: 2, bar_time: t0 + 2000, resolved_bar_time: t0 + 3602000, status: 'resolved', outcome_a: 1.5, outcome_b: 2.5, outcome_c: 1.6, wm_filter: true }
   ];
 
   const multi = PortfolioSimulator.simulateMulti(signals, { minScore: 85, riskPctPerTrade: 0.01 });
@@ -833,17 +834,23 @@ test('portfolio: multi-account simulation supports 6 accounts (Plan A, B, C base
   assert.strictEqual(multi.planA_wm.plan, 'A');
   assert.strictEqual(multi.planB_wm.plan, 'B');
   assert.strictEqual(multi.planC_wm.plan, 'C');
+  assert.strictEqual(multi.planC_wm_perp.plan, 'C');
+  assert.strictEqual(multi.planC_wm_perp.marketFilter, 'PERP');
 
-  // Baseline accounts take both signals
-  assert.strictEqual(multi.planA.summary.totalTrades, 2);
-  assert.strictEqual(multi.planB.summary.totalTrades, 2);
-  assert.strictEqual(multi.planC.summary.totalTrades, 2);
+  // Baseline accounts take all 3 signals
+  assert.strictEqual(multi.planA.summary.totalTrades, 3);
+  assert.strictEqual(multi.planB.summary.totalTrades, 3);
+  assert.strictEqual(multi.planC.summary.totalTrades, 3);
 
-  // WM Filter accounts take ONLY the qualifying ETHUSDT signal (id: 22)
-  assert.strictEqual(multi.planA_wm.summary.totalTrades, 1);
-  assert.strictEqual(multi.planB_wm.summary.totalTrades, 1);
-  assert.strictEqual(multi.planC_wm.summary.totalTrades, 1);
-  assert.strictEqual(multi.planA_wm.closedTrades[0].symbol, 'ETHUSDT');
+  // WM Filter accounts (all markets) take the 2 qualifying signals (ETHUSDT perp and BTCUSDT spot)
+  assert.strictEqual(multi.planA_wm.summary.totalTrades, 2);
+  assert.strictEqual(multi.planB_wm.summary.totalTrades, 2);
+  assert.strictEqual(multi.planC_wm.summary.totalTrades, 2);
+
+  // Account 7 (Plan C WM Perps Only) strictly takes ONLY ETHUSDT (id: 22) and excludes BTCUSDT spot
+  assert.strictEqual(multi.planC_wm_perp.summary.totalTrades, 1);
+  assert.strictEqual(multi.planC_wm_perp.closedTrades[0].symbol, 'ETHUSDT');
+  assert.strictEqual(multi.planC_wm_perp.closedTrades[0].market, 'PERP');
 });
 
 test('coinview: calculates wmFilter based on 1h/4h velocity and 1h RSI', () => {

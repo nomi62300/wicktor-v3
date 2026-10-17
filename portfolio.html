@@ -28,14 +28,14 @@
   <div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px;flex-wrap:wrap;gap:8px;">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
       <div style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">
-        Funded Multi-Account Portfolios ($10,000 Each)
+        Funded Multi-Account Portfolios (7x $10,000 Each)
       </div>
       <span id="prop-sync-status" style="font-size:11px;color:var(--gold-text);display:flex;align-items:center;gap:4px;">
         ⚡ Connecting to Supabase Tokyo...
       </span>
     </div>
     <button id="prop-toggle-compare-btn" class="chip" style="font-size:11px;padding:4px 10px;">
-      📊 Compare All 6 Accounts
+      📊 Compare All 7 Accounts
     </button>
   </div>
 
@@ -117,12 +117,25 @@
         <span class="prop-pill-sub" id="pill-sub-C_WM">0.0% WR &middot; 0 Trades</span>
       </div>
     </div>
+
+    <!-- Account 7: Plan C (WM Perps Only) -->
+    <div class="prop-account-pill prop-account-pill--perp" data-account="C_WM_PERP" id="account-pill-C_WM_PERP">
+      <div class="prop-pill-title">
+        <span>Account 7 — Plan C (Perps Only)</span>
+        <span class="prop-badge-perp" id="pill-badge-C_WM_PERP">Active · Perps Only</span>
+      </div>
+      <div class="prop-pill-plan">Dynamic 0.5R Trail &middot; Scale-Out &middot; WM Combined &middot; Perps Only</div>
+      <div class="prop-pill-metrics">
+        <span class="prop-pill-pnl" id="pill-pnl-C_WM_PERP">+$0.00</span>
+        <span class="prop-pill-sub" id="pill-sub-C_WM_PERP">0.0% WR &middot; 0 Trades</span>
+      </div>
+    </div>
   </div>
 
-  <!-- Side-by-Side 6-Account Comparison Matrix (Collapsible) -->
+  <!-- Side-by-Side 7-Account Comparison Matrix (Collapsible) -->
   <div class="prop-compare-card" id="prop-compare-card" style="display:none;">
     <div class="prop-compare-header">
-      <span style="font-weight:600;font-size:13px;">6-Account Performance Comparison Matrix</span>
+      <span style="font-weight:600;font-size:13px;">7-Account Performance Comparison Matrix</span>
       <span style="font-size:11px;color:var(--text3);">Initial Capital: $10,000 USDT each &middot; No Phase 1 Limit &middot; Score &ge; 85</span>
     </div>
     <div style="overflow-x:auto;">
@@ -136,6 +149,7 @@
             <th>Acc 4 (Plan A: WM Combined)</th>
             <th>Acc 5 (Plan B: WM Combined)</th>
             <th>Acc 6 (Plan C: WM Combined)</th>
+            <th>Acc 7 (Plan C: Perps Only)</th>
           </tr>
         </thead>
         <tbody id="prop-compare-tbody">
