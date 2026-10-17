@@ -284,6 +284,10 @@
     const leverage = Number(opts.leverage) || 5;
     const liveMarks = opts.liveMarks || {};
 
+    // Static DD limits (strictly 4% = $400 daily, 8% = $800 max DD on $10,000 initial capital)
+    const dailyLimitDollars = startingCapital * dailyLimit;
+    const overallLimitDollars = startingCapital * overallLimit;
+
     let capital = startingCapital;
     let peakDailyClosingCapital = startingCapital;
     let maxOverallDdEncountered = 0;
@@ -383,11 +387,13 @@
 
         // Rule 1: Max drawdown is updated every midnight UTC as the final loss of that day is added (not floating loss)
         if (capital > peakDailyClosingCapital) peakDailyClosingCapital = capital;
-        const midnightDd = peakDailyClosingCapital > 0 ? (peakDailyClosingCapital - capital) / peakDailyClosingCapital : 0;
+        // Static Max DD: loss below starting balance ($10,000)
+        const overallLossAtMidnight = Math.max(0, startingCapital - capital);
+        const midnightDd = startingCapital > 0 ? overallLossAtMidnight / startingCapital : 0;
         if (midnightDd > maxOverallDdEncountered) maxOverallDdEncountered = midnightDd;
 
-        // Account floor: 8% max loss from starting capital ($9,200 floor)
-        if (capital <= startingCapital * (1 - overallLimit)) {
+        // Account floor: static 8% max loss from starting capital ($9,200 floor, i.e. $800 max DD)
+        if (capital <= startingCapital - overallLimitDollars) {
           accountBreached = true;
         }
 
@@ -406,12 +412,13 @@
 
         // Rule 1: Daily drawdown is calculated when a trade closes, not running loss
         const dayLoss = Math.max(0, dayStartCapital - capital);
-        const dayDd = dayStartCapital > 0 ? dayLoss / dayStartCapital : 0;
+        // Static Daily DD: measured relative to starting capital (4% = $400)
+        const dayDd = startingCapital > 0 ? dayLoss / startingCapital : 0;
         if (dayDd > maxDailyDdEncountered) maxDailyDdEncountered = dayDd;
 
         const dayRec = getDayRecord(currentUtcDay, dayStartCapital);
         if (dayDd > dayRec.maxDailyDd) dayRec.maxDailyDd = dayDd;
-        if (dayDd >= dailyLimit) {
+        if (dayLoss >= dailyLimitDollars || dayDd >= dailyLimit) {
           dailyHalted = true;
           dayRec.isHalted = true;
         }
@@ -650,22 +657,23 @@
 
     // Rule 1: Daily Drawdown is calculated when a trade closes (realized closed loss today)
     const todayClosedLoss = Math.max(0, todayStartCap - capital);
-    const currentDailyDd = todayStartCap > 0 ? todayClosedLoss / todayStartCap : 0;
+    const currentDailyDd = startingCapital > 0 ? todayClosedLoss / startingCapital : 0;
     if (currentDailyDd > maxDailyDdEncountered) maxDailyDdEncountered = currentDailyDd;
 
-    const dailyLimitDollars = todayStartCap * dailyLimit;
+    // Static Daily DD (strictly 4% = $400 on $10,000 initial capital)
     const dailyBufferDollars = Math.max(0, dailyLimitDollars - todayClosedLoss);
     const dailyUsedPct = Math.min(100, (todayClosedLoss / dailyLimitDollars) * 100);
 
-    // Rule 1: Max drawdown is updated every midnight UTC on closing capital (not floating loss)
-    const overallLimitDollars = startingCapital * overallLimit;
+    // Static Max DD (strictly 8% = $800 on $10,000 initial capital, $9,200 floor)
     const currentOverallLoss = Math.max(0, startingCapital - capital);
-    const overallBufferDollars = Math.max(0, capital - (startingCapital * (1 - overallLimit)));
+    const currentOverallDd = startingCapital > 0 ? currentOverallLoss / startingCapital : 0;
+    if (currentOverallDd > maxOverallDdEncountered) maxOverallDdEncountered = currentOverallDd;
+    const overallBufferDollars = Math.max(0, overallLimitDollars - currentOverallLoss);
     const overallUsedPct = Math.min(100, (currentOverallLoss / overallLimitDollars) * 100);
 
     // Rule 3: No phase 1 limit or ceiling
     const isDailyHalted = dailyHalted || todayClosedLoss >= dailyLimitDollars;
-    const isAccountBreached = accountBreached || capital <= startingCapital * (1 - overallLimit);
+    const isAccountBreached = accountBreached || capital <= startingCapital - overallLimitDollars;
 
     let statusText = 'Funded / Active (No End Target)';
     if (isAccountBreached) {
@@ -890,7 +898,7 @@
         dailyDdLevel: todayStartCap - dailyLimitDollars,
         dailyDdLeft: dailyBufferDollars,
         dailyUsedPct,
-        maxDdLevel: startingCapital * (1 - overallLimit),
+        maxDdLevel: startingCapital - overallLimitDollars,
         maxDdLeft: overallBufferDollars,
         maxUsedPct: overallUsedPct,
         growthNetProfit: netProfit,

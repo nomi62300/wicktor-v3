@@ -475,8 +475,8 @@
     objectivesGrid.innerHTML = `
       <div class="prop-card">
         <div style="display:flex;justify-content:space-between;align-items:center;">
-          <span style="font-size:12px;color:var(--text2);font-weight:500;">Daily Loss Limit (4.0%)</span>
-          <span style="font-size:11px;font-family:var(--font-mono);background:var(--surf2);padding:2px 6px;border-radius:4px;color:var(--text3);">${fmtDollarPlain(o.dailyDdLevel)}</span>
+          <span style="font-size:12px;color:var(--text2);font-weight:500;">Daily Loss Limit (4.0% Static)</span>
+          <span style="font-size:11px;font-family:var(--font-mono);background:var(--surf2);padding:2px 6px;border-radius:4px;color:var(--text3);">${fmtDollarPlain(s.dailyLimitDollars)} limit</span>
         </div>
         <div style="font-size:26px;font-family:var(--font-mono);font-weight:700;margin:10px 0 4px;color:var(--text);">
           ${fmtDollarPlain(o.dailyDdLeft)} <span style="font-size:13px;color:var(--text3);font-weight:normal;">left</span>
@@ -492,7 +492,7 @@
 
       <div class="prop-card">
         <div style="display:flex;justify-content:space-between;align-items:center;">
-          <span style="font-size:12px;color:var(--text2);font-weight:500;">Max Drawdown Limit (8.0%)</span>
+          <span style="font-size:12px;color:var(--text2);font-weight:500;">Max Drawdown Limit (8.0% Static)</span>
           <span style="font-size:11px;font-family:var(--font-mono);background:var(--surf2);padding:2px 6px;border-radius:4px;color:var(--text3);">${fmtDollarPlain(o.maxDdLevel)} floor</span>
         </div>
         <div style="font-size:26px;font-family:var(--font-mono);font-weight:700;margin:10px 0 4px;color:var(--text);">
