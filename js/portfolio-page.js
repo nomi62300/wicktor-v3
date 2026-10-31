@@ -53,17 +53,11 @@
   }
 
   function fmtDuration(minutes) {
-    if (minutes == null || isNaN(minutes) || minutes < 0) return '--';
-    const m = Math.round(minutes);
-    if (m < 60) return `${m}m`;
-    if (m < 1440) {
-      const h = Math.floor(m / 60);
-      const remM = m % 60;
-      return remM === 0 ? `${h}h` : `${h}h ${remM}m`;
-    }
-    const d = Math.floor(m / 1440);
-    const remH = Math.floor((m % 1440) / 60);
-    return remH === 0 ? `${d}d` : `${d}d ${remH}h`;
+    if (minutes == null || isNaN(minutes) || minutes < 0) return '00 H 00 M';
+    const totalM = Math.round(Number(minutes));
+    const h = Math.floor(totalM / 60);
+    const m = totalM % 60;
+    return `${String(h).padStart(2, '0')} H ${String(m).padStart(2, '0')} M`;
   }
 
   // State
@@ -414,10 +408,18 @@
                                  `${planA_wm.summary.maxDailyDdEncounteredPct.toFixed(2)}%`, `${planB_wm.summary.maxDailyDdEncounteredPct.toFixed(2)}%`, `${planC_wm.summary.maxDailyDdEncounteredPct.toFixed(2)}%`,
                                  `${planC_wm_perp.summary.maxDailyDdEncounteredPct.toFixed(2)}%`,
                                  `${planH_wm_perp.summary.maxDailyDdEncounteredPct.toFixed(2)}%`) +
-      row('Midnight UTC Max DD', `${planA.summary.maxOverallDdEncounteredPct.toFixed(2)}%`, `${planB.summary.maxOverallDdEncounteredPct.toFixed(2)}%`, `${planC.summary.maxOverallDdEncounteredPct.toFixed(2)}%`,
-                                 `${planA_wm.summary.maxOverallDdEncounteredPct.toFixed(2)}%`, `${planB_wm.summary.maxOverallDdEncounteredPct.toFixed(2)}%`, `${planC_wm.summary.maxOverallDdEncounteredPct.toFixed(2)}%`,
-                                 `${planC_wm_perp.summary.maxOverallDdEncounteredPct.toFixed(2)}%`,
-                                 `${planH_wm_perp.summary.maxOverallDdEncounteredPct.toFixed(2)}%`) +
+      row('Trailing Max DD Peak', `${(planA.summary.maxTrailingDdEncounteredPct || 0).toFixed(2)}%`, `${(planB.summary.maxTrailingDdEncounteredPct || 0).toFixed(2)}%`, `${(planC.summary.maxTrailingDdEncounteredPct || 0).toFixed(2)}%`,
+                                  `${(planA_wm.summary.maxTrailingDdEncounteredPct || 0).toFixed(2)}%`, `${(planB_wm.summary.maxTrailingDdEncounteredPct || 0).toFixed(2)}%`, `${(planC_wm.summary.maxTrailingDdEncounteredPct || 0).toFixed(2)}%`,
+                                  `${(planC_wm_perp.summary.maxTrailingDdEncounteredPct || 0).toFixed(2)}%`,
+                                  `${(planH_wm_perp.summary.maxTrailingDdEncounteredPct || 0).toFixed(2)}%`) +
+      row('Static Floor Loss Peak', `${planA.summary.maxOverallDdEncounteredPct.toFixed(2)}%`, `${planB.summary.maxOverallDdEncounteredPct.toFixed(2)}%`, `${planC.summary.maxOverallDdEncounteredPct.toFixed(2)}%`,
+                                    `${planA_wm.summary.maxOverallDdEncounteredPct.toFixed(2)}%`, `${planB_wm.summary.maxOverallDdEncounteredPct.toFixed(2)}%`, `${planC_wm.summary.maxOverallDdEncounteredPct.toFixed(2)}%`,
+                                    `${planC_wm_perp.summary.maxOverallDdEncounteredPct.toFixed(2)}%`,
+                                    `${planH_wm_perp.summary.maxOverallDdEncounteredPct.toFixed(2)}%`) +
+      row('Max DD Buffer Left', fmtDollarPlain(planA.objectives.maxDdLeft), fmtDollarPlain(planB.objectives.maxDdLeft), fmtDollarPlain(planC.objectives.maxDdLeft),
+                                fmtDollarPlain(planA_wm.objectives.maxDdLeft), fmtDollarPlain(planB_wm.objectives.maxDdLeft), fmtDollarPlain(planC_wm.objectives.maxDdLeft),
+                                fmtDollarPlain(planC_wm_perp.objectives.maxDdLeft),
+                                fmtDollarPlain(planH_wm_perp.objectives.maxDdLeft)) +
       row('Bybit Fees Paid', fmtDollarPlain(planA.summary.totalFeesPaid), fmtDollarPlain(planB.summary.totalFeesPaid), fmtDollarPlain(planC.summary.totalFeesPaid),
                              fmtDollarPlain(planA_wm.summary.totalFeesPaid), fmtDollarPlain(planB_wm.summary.totalFeesPaid), fmtDollarPlain(planC_wm.summary.totalFeesPaid),
                              fmtDollarPlain(planC_wm_perp.summary.totalFeesPaid),
@@ -486,7 +488,7 @@
         </div>
         <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-top:4px;">
           <span>${o.dailyUsedPct.toFixed(1)}% used (-$${s.currentDailyLoss.toFixed(2)})</span>
-          <span>Resets Midnight UTC (00:00:00)</span>
+          <span>Start-of-Day balance · Resets Midnight UTC</span>
         </div>
       </div>
 
@@ -502,8 +504,8 @@
           <div class="prop-progress-fill-coral" style="width:${Math.max(2, o.maxUsedPct)}%;"></div>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-top:4px;">
-          <span>${o.maxUsedPct.toFixed(1)}% used (-$${s.currentOverallLoss.toFixed(2)})</span>
-          <span>Evaluated Midnight UTC on closing capital</span>
+          <span>Static Floor: $9,200.00 (-$${s.currentOverallLoss.toFixed(2)} used)</span>
+          <span>Trailing Drop: $${(s.currentTrailingDrop || 0).toFixed(2)} (${(s.maxTrailingDdEncounteredPct || 0).toFixed(1)}% peak)</span>
         </div>
       </div>
 
@@ -660,16 +662,103 @@
     const startY = scaleY(startingCapital);
 
     chartContainer.innerHTML = `
-      <svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow:visible;">
-        <line x1="${padX}" y1="${startY}" x2="${W - padX}" y2="${startY}" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
-        <text x="${padX - 8}" y="${startY + 4}" fill="var(--text3)" font-size="9" text-anchor="end" font-family="var(--font-mono)">$10k</text>
+      <div style="position:relative;width:100%;height:${H}px;">
+        <svg id="v3-bal-chart-svg" width="100%" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow:visible;display:block;">
+          <line x1="${padX}" y1="${startY}" x2="${W - padX}" y2="${startY}" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
+          <text x="${padX - 8}" y="${startY + 4}" fill="var(--text3)" font-size="9" text-anchor="end" font-family="var(--font-mono)">$10k</text>
 
-        <line x1="${padX}" y1="${maxDdY}" x2="${W - padX}" y2="${maxDdY}" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4,4" opacity="0.65" />
-        <text x="${padX - 8}" y="${maxDdY + 4}" fill="#f59e0b" font-size="9" text-anchor="end" font-family="var(--font-mono)">$9.2k Floor</text>
+          <line x1="${padX}" y1="${maxDdY}" x2="${W - padX}" y2="${maxDdY}" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4,4" opacity="0.65" />
+          <text x="${padX - 8}" y="${maxDdY + 4}" fill="#f59e0b" font-size="9" text-anchor="end" font-family="var(--font-mono)">$9.2k Floor</text>
 
-        <path d="${pathD}" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-        ${points.map((p, i) => `<circle cx="${scaleX(i).toFixed(1)}" cy="${scaleY(p.balance).toFixed(1)}" r="3" fill="#38bdf8" />`).join('')}
-      </svg>`;
+          <path d="${pathD}" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+
+          <!-- Dynamic Hover Crosshair -->
+          <g id="v3-bal-hover-group" style="display:none;pointer-events:none;">
+            <line id="v3-bal-hover-line" x1="0" y1="${padY}" x2="0" y2="${H - padY}" stroke="rgba(255,255,255,0.3)" stroke-width="1.2" stroke-dasharray="3,3" />
+            <circle id="v3-bal-hover-glow" cx="0" cy="0" r="9" fill="rgba(56,189,248,0.25)" />
+            <circle id="v3-bal-hover-dot" cx="0" cy="0" r="4.5" fill="#38bdf8" stroke="#0f172a" stroke-width="2" />
+          </g>
+
+          <!-- Tracking Rect -->
+          <rect id="v3-bal-hover-rect" x="${padX}" y="0" width="${W - padX * 2}" height="${H}" fill="transparent" style="cursor:crosshair;"></rect>
+        </svg>
+
+        <!-- Floating Tooltip -->
+        <div id="v3-bal-tooltip" style="display:none;position:absolute;pointer-events:none;z-index:100;background:rgba(15,23,42,0.96);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.16);border-radius:8px;padding:8px 12px;box-shadow:0 12px 28px -4px rgba(0,0,0,0.65);font-family:var(--font-sans);white-space:nowrap;transition:opacity 0.1s ease;"></div>
+      </div>`;
+
+    const svg = document.getElementById('v3-bal-chart-svg');
+    const rect = document.getElementById('v3-bal-hover-rect');
+    const hGroup = document.getElementById('v3-bal-hover-group');
+    const hLine = document.getElementById('v3-bal-hover-line');
+    const hGlow = document.getElementById('v3-bal-hover-glow');
+    const hDot = document.getElementById('v3-bal-hover-dot');
+    const tip = document.getElementById('v3-bal-tooltip');
+
+    if (!rect || !svg || !tip) return;
+
+    function handleMove(e) {
+      const bRect = svg.getBoundingClientRect();
+      const clientX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+      const svgX = (clientX - bRect.left) * (W / bRect.width);
+
+      const clampedX = Math.max(padX, Math.min(W - padX, svgX));
+      const t = (clampedX - padX) / Math.max(1, W - padX * 2);
+      const idx = Math.max(0, Math.min(points.length - 1, Math.round(t * (points.length - 1))));
+      const pt = points[idx];
+      if (!pt) return;
+
+      const cx = scaleX(idx);
+      const cy = scaleY(pt.balance);
+
+      hGroup.style.display = 'block';
+      hLine.setAttribute('x1', cx);
+      hLine.setAttribute('x2', cx);
+      hGlow.setAttribute('cx', cx);
+      hGlow.setAttribute('cy', cy);
+      hDot.setAttribute('cx', cx);
+      hDot.setAttribute('cy', cy);
+
+      const profit = pt.balance - startingCapital;
+      const profitPct = (profit / startingCapital) * 100;
+      const isProf = profit >= 0;
+      const profitCol = isProf ? 'var(--green-text)' : 'var(--red-text)';
+      const timeStr = pt.dateStr || (pt.time ? new Date(pt.time).toLocaleDateString() : 'Trade #' + idx);
+
+      tip.innerHTML = `
+        <div style="font-size:10px;color:var(--text3);margin-bottom:3px;">${timeStr}</div>
+        <div style="font-size:15px;font-family:var(--font-mono);font-weight:700;color:#fff;">
+          $${Number(pt.balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </div>
+        <div style="font-size:11px;font-family:var(--font-mono);color:${profitCol};margin-top:2px;font-weight:600;">
+          ${isProf ? '+' : ''}$${profit.toFixed(2)} (${isProf ? '+' : ''}${profitPct.toFixed(2)}%)
+        </div>
+      `;
+
+      const posX = (cx / W) * bRect.width;
+      const posY = (cy / H) * bRect.height;
+
+      tip.style.display = 'block';
+      tip.style.left = posX + 'px';
+      tip.style.top = posY + 'px';
+
+      const transY = posY < 60 ? '15px' : '-115%';
+      let transX = '-50%';
+      if (posX < 85) transX = '0%';
+      else if (posX > bRect.width - 85) transX = '-100%';
+      tip.style.transform = `translate(${transX}, ${transY})`;
+    }
+
+    function handleLeave() {
+      hGroup.style.display = 'none';
+      tip.style.display = 'none';
+    }
+
+    rect.addEventListener('mousemove', handleMove);
+    rect.addEventListener('mouseleave', handleLeave);
+    rect.addEventListener('touchstart', handleMove, { passive: true });
+    rect.addEventListener('touchmove', handleMove, { passive: true });
+    rect.addEventListener('touchend', handleLeave, { passive: true });
   }
 
   // -------------------------------------------------------------------------
@@ -865,18 +954,103 @@
     const areaD = `${pathD} L ${scaleX(points.length - 1).toFixed(1)} ${zeroY.toFixed(1)} L ${scaleX(0).toFixed(1)} ${zeroY.toFixed(1)} Z`;
 
     cumulativeChart.innerHTML = `
-      <svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow:visible;">
-        <defs>
-          <linearGradient id="cumPnlGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#10b981" stop-opacity="0.35"/>
-            <stop offset="100%" stop-color="#10b981" stop-opacity="0.0"/>
-          </linearGradient>
-        </defs>
-        <line x1="${padX}" y1="${zeroY}" x2="${W - padX}" y2="${zeroY}" stroke="rgba(255,255,255,0.15)" stroke-width="1" />
-        <path d="${areaD}" fill="url(#cumPnlGrad)" />
-        <path d="${pathD}" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" />
-        ${points.map((p, i) => `<circle cx="${scaleX(i).toFixed(1)}" cy="${scaleY(p.netPnl).toFixed(1)}" r="2.5" fill="#10b981" />`).join('')}
-      </svg>`;
+      <div style="position:relative;width:100%;height:${H}px;">
+        <svg id="v3-cum-chart-svg" width="100%" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow:visible;display:block;">
+          <defs>
+            <linearGradient id="cumPnlGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#10b981" stop-opacity="0.35"/>
+              <stop offset="100%" stop-color="#10b981" stop-opacity="0.0"/>
+            </linearGradient>
+          </defs>
+          <line x1="${padX}" y1="${zeroY}" x2="${W - padX}" y2="${zeroY}" stroke="rgba(255,255,255,0.15)" stroke-width="1" />
+          <path d="${areaD}" fill="url(#cumPnlGrad)" />
+          <path d="${pathD}" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" />
+
+          <!-- Dynamic Hover Crosshair -->
+          <g id="v3-cum-hover-group" style="display:none;pointer-events:none;">
+            <line id="v3-cum-hover-line" x1="0" y1="${padY}" x2="0" y2="${H - padY}" stroke="rgba(255,255,255,0.3)" stroke-width="1.2" stroke-dasharray="3,3" />
+            <circle id="v3-cum-hover-glow" cx="0" cy="0" r="9" fill="rgba(16,185,129,0.25)" />
+            <circle id="v3-cum-hover-dot" cx="0" cy="0" r="4.5" fill="#10b981" stroke="#0f172a" stroke-width="2" />
+          </g>
+
+          <!-- Tracking Rect -->
+          <rect id="v3-cum-hover-rect" x="${padX}" y="0" width="${W - padX * 2}" height="${H}" fill="transparent" style="cursor:crosshair;"></rect>
+        </svg>
+
+        <!-- Floating Tooltip -->
+        <div id="v3-cum-tooltip" style="display:none;position:absolute;pointer-events:none;z-index:100;background:rgba(15,23,42,0.96);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.16);border-radius:8px;padding:8px 12px;box-shadow:0 12px 28px -4px rgba(0,0,0,0.65);font-family:var(--font-sans);white-space:nowrap;transition:opacity 0.1s ease;"></div>
+      </div>`;
+
+    const svg = document.getElementById('v3-cum-chart-svg');
+    const rect = document.getElementById('v3-cum-hover-rect');
+    const hGroup = document.getElementById('v3-cum-hover-group');
+    const hLine = document.getElementById('v3-cum-hover-line');
+    const hGlow = document.getElementById('v3-cum-hover-glow');
+    const hDot = document.getElementById('v3-cum-hover-dot');
+    const tip = document.getElementById('v3-cum-tooltip');
+
+    if (!rect || !svg || !tip) return;
+
+    function handleMove(e) {
+      const bRect = svg.getBoundingClientRect();
+      const clientX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+      const svgX = (clientX - bRect.left) * (W / bRect.width);
+
+      const clampedX = Math.max(padX, Math.min(W - padX, svgX));
+      const t = (clampedX - padX) / Math.max(1, W - padX * 2);
+      const idx = Math.max(0, Math.min(points.length - 1, Math.round(t * (points.length - 1))));
+      const pt = points[idx];
+      if (!pt) return;
+
+      const cx = scaleX(idx);
+      const cy = scaleY(pt.netPnl);
+
+      hGroup.style.display = 'block';
+      hLine.setAttribute('x1', cx);
+      hLine.setAttribute('x2', cx);
+      hGlow.setAttribute('cx', cx);
+      hGlow.setAttribute('cy', cy);
+      hDot.setAttribute('cx', cx);
+      hDot.setAttribute('cy', cy);
+
+      const isProf = pt.netPnl >= 0;
+      const profitCol = isProf ? 'var(--green-text)' : 'var(--red-text)';
+      const timeStr = pt.dateStr || (pt.time ? new Date(pt.time).toLocaleDateString() : 'Trade #' + idx);
+
+      tip.innerHTML = `
+        <div style="font-size:10px;color:var(--text3);margin-bottom:3px;">${timeStr}</div>
+        <div style="font-size:15px;font-family:var(--font-mono);font-weight:700;color:${profitCol};">
+          ${isProf ? '+$' : '-$'}${Math.abs(pt.netPnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </div>
+        <div style="font-size:11px;font-family:var(--font-mono);color:var(--text2);margin-top:2px;">
+          Balance: $${Number(pt.balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </div>
+      `;
+
+      const posX = (cx / W) * bRect.width;
+      const posY = (cy / H) * bRect.height;
+
+      tip.style.display = 'block';
+      tip.style.left = posX + 'px';
+      tip.style.top = posY + 'px';
+
+      const transY = posY < 50 ? '15px' : '-115%';
+      let transX = '-50%';
+      if (posX < 85) transX = '0%';
+      else if (posX > bRect.width - 85) transX = '-100%';
+      tip.style.transform = `translate(${transX}, ${transY})`;
+    }
+
+    function handleLeave() {
+      hGroup.style.display = 'none';
+      tip.style.display = 'none';
+    }
+
+    rect.addEventListener('mousemove', handleMove);
+    rect.addEventListener('mouseleave', handleLeave);
+    rect.addEventListener('touchstart', handleMove, { passive: true });
+    rect.addEventListener('touchmove', handleMove, { passive: true });
+    rect.addEventListener('touchend', handleLeave, { passive: true });
   }
 
   // Daily Bars Chart SVG
@@ -1107,10 +1281,11 @@
     let offset = 0;
     while (true) {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const timeoutId = setTimeout(() => controller.abort(), 35000);
       let res;
       try {
-        res = await fetch(urlBase, { headers: { ...headers, Range: `${offset}-${offset + PAGE - 1}` }, signal: controller.signal });
+        const pageUrl = `${urlBase}&limit=${PAGE}&offset=${offset}`;
+        res = await fetch(pageUrl, { headers, signal: controller.signal });
       } finally {
         clearTimeout(timeoutId);
       }
@@ -1131,7 +1306,7 @@
       }
       const headers = { apikey: KEY, Authorization: `Bearer ${KEY}`, Prefer: 'count=exact' };
       const statsRows = await fetchAllRows(
-        `${REST}?select=id,symbol,market,direction,score,trigger_name,context_regime,entry,stop,target,risk_pct,status,outcome_a,outcome_b,outcome_c,exit_reason,tp1_hit,tp2_hit,tp3_hit,tp1_time_min,tp2_time_min,tp3_time_min,duration_min,bar_time,resolved_bar_time,resolved_at,created_at,wm_filter,path&order=bar_time.asc`,
+        `${REST}?select=id,symbol,market,direction,score,trigger_name,context_regime,entry,stop,target,risk_pct,status,outcome_a,outcome_b,outcome_c,exit_reason,tp1_hit,tp2_hit,tp3_hit,tp1_time_min,tp2_time_min,tp3_time_min,duration_min,bar_time,resolved_bar_time,resolved_at,created_at,wm_filter&score=gte.85&order=bar_time.asc`,
         headers
       );
       state.statsRows = statsRows;

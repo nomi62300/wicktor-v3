@@ -75,6 +75,9 @@
         totalFeesPaid: 0,
         maxDailyDdEncounteredPct: 0,
         maxOverallDdEncounteredPct: 0,
+        maxTrailingDdEncounteredPct: 0,
+        peakCapital: startingCapital,
+        currentTrailingDrop: 0,
         dailyLimitPct: dailyLimit * 100,
         overallLimitPct: overallLimit * 100,
         dailyBufferDollars: startingCapital * dailyLimit,
@@ -99,6 +102,10 @@
         maxDdLevel: startingCapital * (1 - overallLimit),
         maxDdLeft: startingCapital * overallLimit,
         maxUsedPct: 0,
+        peakCapital: startingCapital,
+        trailingDdDrop: 0,
+        trailingDdPct: 0,
+        maxTrailingDdPct: 0,
         growthNetProfit: 0,
         growthRoiPct: 0
       },
@@ -289,8 +296,10 @@
     const overallLimitDollars = startingCapital * overallLimit;
 
     let capital = startingCapital;
+    let peakCapital = startingCapital;
     let peakDailyClosingCapital = startingCapital;
     let maxOverallDdEncountered = 0;
+    let maxTrailingDdEncountered = 0;
     let maxDailyDdEncountered = 0;
     let accountBreached = false;
 
@@ -385,12 +394,19 @@
           dailyLedger.get(currentUtcDay).endCapital = capital;
         }
 
-        // Rule 1: Max drawdown is updated every midnight UTC as the final loss of that day is added (not floating loss)
+        // Rule 1: Max drawdown is updated at midnight UTC as final closing balance
         if (capital > peakDailyClosingCapital) peakDailyClosingCapital = capital;
+        if (capital > peakCapital) peakCapital = capital;
+
         // Static Max DD: loss below starting balance ($10,000)
         const overallLossAtMidnight = Math.max(0, startingCapital - capital);
         const midnightDd = startingCapital > 0 ? overallLossAtMidnight / startingCapital : 0;
         if (midnightDd > maxOverallDdEncountered) maxOverallDdEncountered = midnightDd;
+
+        // Trailing Max DD: drop from peak
+        const trailingDropAtMidnight = Math.max(0, peakCapital - capital);
+        const midnightTrailingDd = startingCapital > 0 ? trailingDropAtMidnight / startingCapital : 0;
+        if (midnightTrailingDd > maxTrailingDdEncountered) maxTrailingDdEncountered = midnightTrailingDd;
 
         // Account floor: static 8% max loss from starting capital ($9,200 floor, i.e. $800 max DD)
         if (capital <= startingCapital - overallLimitDollars) {
@@ -410,11 +426,28 @@
         activeTrades.delete(trade.id);
         capital += trade.netPnl;
 
-        // Rule 1: Daily drawdown is calculated when a trade closes, not running loss
+        if (capital > peakCapital) peakCapital = capital;
+
+        // Rule 1: Daily drawdown is calculated when a trade closes, strictly relative to start of day
         const dayLoss = Math.max(0, dayStartCapital - capital);
         // Static Daily DD: measured relative to starting capital (4% = $400)
         const dayDd = startingCapital > 0 ? dayLoss / startingCapital : 0;
         if (dayDd > maxDailyDdEncountered) maxDailyDdEncountered = dayDd;
+
+        // Static Max Drawdown: loss below initial starting capital ($10,000)
+        const staticLoss = Math.max(0, startingCapital - capital);
+        const staticDd = startingCapital > 0 ? staticLoss / startingCapital : 0;
+        if (staticDd > maxOverallDdEncountered) maxOverallDdEncountered = staticDd;
+
+        // Trailing Drawdown: peak-to-trough drop from highest historical peak
+        const trailingDrop = Math.max(0, peakCapital - capital);
+        const trailingDd = startingCapital > 0 ? trailingDrop / startingCapital : 0;
+        if (trailingDd > maxTrailingDdEncountered) maxTrailingDdEncountered = trailingDd;
+
+        // Immediate Account floor breach check ($9,200 floor, i.e. $800 max DD)
+        if (capital <= startingCapital - overallLimitDollars) {
+          accountBreached = true;
+        }
 
         const dayRec = getDayRecord(currentUtcDay, dayStartCapital);
         if (dayDd > dayRec.maxDailyDd) dayRec.maxDailyDd = dayDd;
@@ -671,6 +704,12 @@
     const overallBufferDollars = Math.max(0, overallLimitDollars - currentOverallLoss);
     const overallUsedPct = Math.min(100, (currentOverallLoss / overallLimitDollars) * 100);
 
+    // Trailing Max DD (Peak-to-Trough from highest historical peak)
+    const currentPeakCapital = Math.max(startingCapital, peakCapital, ...closedTrades.map(t => t.balanceAfter || 0));
+    const currentTrailingDrop = Math.max(0, currentPeakCapital - capital);
+    const currentTrailingDd = startingCapital > 0 ? currentTrailingDrop / startingCapital : 0;
+    if (currentTrailingDd > maxTrailingDdEncountered) maxTrailingDdEncountered = currentTrailingDd;
+
     // Rule 3: No phase 1 limit or ceiling
     const isDailyHalted = dailyHalted || todayClosedLoss >= dailyLimitDollars;
     const isAccountBreached = accountBreached || capital <= startingCapital - overallLimitDollars;
@@ -863,6 +902,7 @@
       marketFilter: opts.marketFilter || null,
       summary: {
         startingCapital,
+        capital,
         currentBalance: capital,
         currentEquity,
         netProfit,
@@ -877,6 +917,9 @@
         totalFeesPaid,
         maxDailyDdEncounteredPct: maxDailyDdEncountered * 100,
         maxOverallDdEncounteredPct: maxOverallDdEncountered * 100,
+        maxTrailingDdEncounteredPct: maxTrailingDdEncountered * 100,
+        peakCapital: currentPeakCapital,
+        currentTrailingDrop,
         dailyLimitPct: dailyLimit * 100,
         overallLimitPct: overallLimit * 100,
         dailyBufferDollars,
@@ -901,6 +944,10 @@
         maxDdLevel: startingCapital - overallLimitDollars,
         maxDdLeft: overallBufferDollars,
         maxUsedPct: overallUsedPct,
+        peakCapital: currentPeakCapital,
+        trailingDdDrop: currentTrailingDrop,
+        trailingDdPct: currentTrailingDd * 100,
+        maxTrailingDdPct: maxTrailingDdEncountered * 100,
         growthNetProfit: netProfit,
         growthRoiPct: netRoiPct
       },
