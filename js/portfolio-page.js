@@ -61,10 +61,13 @@
   }
 
   // State
+  const _now = new Date();
   const state = {
     selectedAccount: 'C', // 'A', 'B', or 'C'
     subtab: 'account-overview',
     calendarUnit: 'dollar',
+    calendarYear: _now.getUTCFullYear(),
+    calendarMonth: _now.getUTCMonth(),
     historySearch: '',
     historyPage: 1,
     historyPerPage: 10,
@@ -132,6 +135,55 @@
   const calendarGrid = document.getElementById('prop-calendar-grid');
   const calDonutWrap = document.getElementById('prop-cal-donut-wrap');
   const calSidebarStats = document.getElementById('prop-cal-sidebar-stats');
+  const calPrevBtn = document.getElementById('prop-cal-prev-btn');
+  const calNextBtn = document.getElementById('prop-cal-next-btn');
+  const calTodayBtn = document.getElementById('prop-cal-today-btn');
+
+  const MONTH_NAMES = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+  const MIN_CAL_YEAR = 2026;
+  const MIN_CAL_MONTH = 9; // October (0-indexed)
+
+  function calPrevMonth() {
+    if (state.calendarYear === MIN_CAL_YEAR && state.calendarMonth <= MIN_CAL_MONTH) return;
+    state.calendarMonth--;
+    if (state.calendarMonth < 0) {
+      state.calendarMonth = 11;
+      state.calendarYear--;
+    }
+    if (state.multiSim) {
+      const currentSim = getActiveSim();
+      renderCalendar(currentSim);
+    }
+  }
+
+  function calNextMonth() {
+    const now = new Date();
+    const maxYear = now.getUTCFullYear();
+    const maxMonth = now.getUTCMonth();
+    if (state.calendarYear > maxYear || (state.calendarYear === maxYear && state.calendarMonth >= maxMonth)) return;
+    state.calendarMonth++;
+    if (state.calendarMonth > 11) {
+      state.calendarMonth = 0;
+      state.calendarYear++;
+    }
+    if (state.multiSim) {
+      const currentSim = getActiveSim();
+      renderCalendar(currentSim);
+    }
+  }
+
+  function calJumpToday() {
+    const now = new Date();
+    state.calendarYear = now.getUTCFullYear();
+    state.calendarMonth = now.getUTCMonth();
+    if (state.multiSim) {
+      const currentSim = getActiveSim();
+      renderCalendar(currentSim);
+    }
+  }
 
   // -------------------------------------------------------------------------
   // Live Midnight UTC Countdown Timer (00:00:00 UTC)
@@ -257,6 +309,10 @@
         });
       });
     }
+
+    if (calPrevBtn) calPrevBtn.addEventListener('click', calPrevMonth);
+    if (calNextBtn) calNextBtn.addEventListener('click', calNextMonth);
+    if (calTodayBtn) calTodayBtn.addEventListener('click', calJumpToday);
 
     if (historySearch) {
       historySearch.addEventListener('input', e => {
@@ -1172,67 +1228,154 @@
   // SUB-TAB 4: Monthly Calendar
   // -------------------------------------------------------------------------
   function renderCalendar(sim) {
-    if (!calendarGrid || !sim.calendar) return;
-    const cal = sim.calendar;
-    const st = sim.stats;
+    if (!calendarGrid || !sim) return;
 
+    const now = new Date();
+    const currentRealYear = now.getUTCFullYear();
+    const currentRealMonth = now.getUTCMonth();
+    const todayNum = now.getUTCDate();
+
+    if (state.calendarYear == null) state.calendarYear = currentRealYear;
+    if (state.calendarMonth == null) state.calendarMonth = currentRealMonth;
+
+    // Month Title
+    const monthName = MONTH_NAMES[state.calendarMonth] || 'Unknown';
     if (calMonthTitle) {
-      calMonthTitle.textContent = `${cal.monthName} ${cal.currentYear}`;
+      calMonthTitle.textContent = `${monthName} ${state.calendarYear}`;
     }
 
-    const firstDayOfWeek = cal.calendarDays[0] ? cal.calendarDays[0].dayOfWeek : 0;
+    // Button disabled states
+    const isAtMin = (state.calendarYear === MIN_CAL_YEAR && state.calendarMonth <= MIN_CAL_MONTH);
+    const isAtMax = (state.calendarYear > currentRealYear || (state.calendarYear === currentRealYear && state.calendarMonth >= currentRealMonth));
+    const isCurrentMonthView = (state.calendarYear === currentRealYear && state.calendarMonth === currentRealMonth);
+
+    if (calPrevBtn) calPrevBtn.disabled = isAtMin;
+    if (calNextBtn) calNextBtn.disabled = isAtMax;
+    if (calTodayBtn) {
+      calTodayBtn.style.opacity = isCurrentMonthView ? '0.5' : '1';
+      calTodayBtn.style.pointerEvents = isCurrentMonthView ? 'none' : 'auto';
+      calTodayBtn.textContent = isCurrentMonthView ? 'Current Month' : 'Jump to Current';
+    }
+
+    // Map daily records from sim.dailyLedger
+    const ledgerMap = new Map();
+    if (Array.isArray(sim.dailyLedger)) {
+      for (const d of sim.dailyLedger) {
+        if (d && d.date) ledgerMap.set(d.date, d);
+      }
+    } else if (sim.dailyLedger && typeof sim.dailyLedger === 'object') {
+      for (const [k, v] of Object.entries(sim.dailyLedger)) {
+        ledgerMap.set(k, v);
+      }
+    }
+
+    // Total days in viewed month
+    const totalDaysInMonth = new Date(Date.UTC(state.calendarYear, state.calendarMonth + 1, 0)).getUTCDate();
+    const firstDayDow = new Date(Date.UTC(state.calendarYear, state.calendarMonth, 1)).getUTCDay();
+    const startDayCol = (firstDayDow + 6) % 7; // Mon = 0 ... Sun = 6
+
     let emptyLeadCells = '';
-    for (let i = 0; i < firstDayOfWeek; i++) {
+    for (let i = 0; i < startDayCol; i++) {
       emptyLeadCells += '<div class="prop-cal-cell empty"></div>';
     }
 
-    const dayCells = cal.calendarDays.map(d => {
+    let winDays = 0;
+    let lossDays = 0;
+    let monthPnl = 0;
+    let monthTrades = 0;
+
+    const monthStr = String(state.calendarMonth + 1).padStart(2, '0');
+    let dayCells = '';
+
+    for (let day = 1; day <= totalDaysInMonth; day++) {
+      const dayStr = `${state.calendarYear}-${monthStr}-${String(day).padStart(2, '0')}`;
+      const rec = ledgerMap.get(dayStr);
+      const isToday = isCurrentMonthView && (day === todayNum);
+
       let stateClass = '';
-      if (d.hasData) {
-        stateClass = d.netPnl >= 0 ? 'profit' : 'loss';
+      let valText = '';
+      let tradesCount = 0;
+
+      if (rec && (rec.tradesCount > 0 || (rec.trades && rec.trades > 0))) {
+        tradesCount = rec.tradesCount != null ? rec.tradesCount : rec.trades;
+        const netPnl = rec.netPnl || 0;
+        monthTrades += tradesCount;
+        monthPnl += netPnl;
+
+        if (netPnl > 0) {
+          stateClass = 'profit';
+          winDays++;
+        } else if (netPnl < 0) {
+          stateClass = 'loss';
+          lossDays++;
+        }
+
+        const baseCap = (rec.startCapital && rec.startCapital > 0) ? rec.startCapital : 10000;
+        const pct = (netPnl / baseCap) * 100;
+        valText = state.calendarUnit === 'pct' ? fmtPercent(pct) : fmtDollar(netPnl);
       }
-      if (d.isToday) stateClass += ' today';
 
-      const valText = d.hasData
-        ? (state.calendarUnit === 'pct' ? fmtPercent((d.netPnl / 10000) * 100) : fmtDollar(d.netPnl))
-        : '';
+      if (isToday) stateClass += ' today';
 
-      return `
-        <div class="prop-cal-cell ${stateClass}">
-          <div style="display:flex;justify-content:space-between;">
-            <span class="prop-cal-num">${d.day}</span>
-            ${d.isToday ? '<span style="font-size:9px;color:var(--gold-text);font-weight:600;">TODAY</span>' : ''}
+      dayCells += `
+        <div class="prop-cal-cell ${stateClass.trim()}">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span class="prop-cal-num">${day}</span>
+            ${isToday ? '<span style="font-size:9px;color:var(--gold-text);font-weight:700;">TODAY</span>' : ''}
           </div>
-          <div class="prop-cal-val" style="color:${rColor(d.netPnl)};">${valText}</div>
-          <div class="prop-cal-sub">${d.hasData ? `${d.trades} Trades` : ''}</div>
+          <div class="prop-cal-val" style="color:${rec && tradesCount > 0 ? rColor(rec.netPnl) : 'var(--text3)'};">${valText}</div>
+          <div class="prop-cal-sub">${tradesCount > 0 ? `${tradesCount} Trades` : ''}</div>
         </div>`;
-    }).join('');
+    }
 
-    calendarGrid.innerHTML = emptyLeadCells + dayCells;
+    // Trailing empty cells
+    const endDayDow = (startDayCol + totalDaysInMonth) % 7;
+    const trailingEmpty = endDayDow === 0 ? 0 : (7 - endDayDow);
+    let emptyTrailCells = '';
+    for (let i = 0; i < trailingEmpty; i++) {
+      emptyTrailCells += '<div class="prop-cal-cell empty"></div>';
+    }
 
-    // Donut Chart & Right Stats
-    const winDays = cal.winningDaysCount;
-    const lossDays = cal.losingDaysCount;
-    const totalD = winDays + lossDays || 1;
-    const winP = (winDays / totalD) * 100;
+    calendarGrid.innerHTML = emptyLeadCells + dayCells + emptyTrailCells;
+
+    // Donut Chart & Month Breakdown Stats
+    const activeTradingDays = winDays + lossDays;
+    const winP = activeTradingDays > 0 ? (winDays / activeTradingDays) * 100 : 0;
+    const dayWinRate = activeTradingDays > 0 ? winP.toFixed(1) : '0.0';
 
     if (calDonutWrap) {
-      calDonutWrap.innerHTML = `
-        <svg width="180" height="110" viewBox="0 0 180 110">
-          <path d="M 20 90 A 70 70 0 0 1 160 90" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="16" stroke-linecap="round" />
-          <path d="M 20 90 A 70 70 0 0 1 160 90" fill="none" stroke="#ef4444" stroke-width="16" stroke-linecap="round" />
-          <path d="M 20 90 A 70 70 0 0 1 160 90" fill="none" stroke="#10b981" stroke-width="16" stroke-dasharray="220" stroke-dashoffset="${220 - (winP / 100) * 220}" stroke-linecap="round" />
-          <text x="90" y="80" text-anchor="middle" font-size="20" font-weight="700" fill="var(--text)" font-family="var(--font-mono)">${winDays} / ${winDays + lossDays}</text>
-          <text x="90" y="96" text-anchor="middle" font-size="9" fill="var(--text3)" text-transform="uppercase">Win / Loss Days</text>
-        </svg>`;
+      if (activeTradingDays === 0) {
+        calDonutWrap.innerHTML = `
+          <svg width="180" height="110" viewBox="0 0 180 110">
+            <path d="M 20 90 A 70 70 0 0 1 160 90" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="16" stroke-linecap="round" />
+            <text x="90" y="80" text-anchor="middle" font-size="20" font-weight="700" fill="var(--text)" font-family="var(--font-mono)">0 / 0</text>
+            <text x="90" y="96" text-anchor="middle" font-size="9" fill="var(--text3)" text-transform="uppercase">Win / Loss Days</text>
+          </svg>`;
+      } else {
+        calDonutWrap.innerHTML = `
+          <svg width="180" height="110" viewBox="0 0 180 110">
+            <path d="M 20 90 A 70 70 0 0 1 160 90" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="16" stroke-linecap="round" />
+            <path d="M 20 90 A 70 70 0 0 1 160 90" fill="none" stroke="#ef4444" stroke-width="16" stroke-linecap="round" />
+            <path d="M 20 90 A 70 70 0 0 1 160 90" fill="none" stroke="#10b981" stroke-width="16" stroke-dasharray="220" stroke-dashoffset="${220 - (winP / 100) * 220}" stroke-linecap="round" />
+            <text x="90" y="80" text-anchor="middle" font-size="20" font-weight="700" fill="var(--text)" font-family="var(--font-mono)">${winDays} / ${activeTradingDays}</text>
+            <text x="90" y="96" text-anchor="middle" font-size="9" fill="var(--text3)" text-transform="uppercase">Win / Loss Days</text>
+          </svg>`;
+      }
     }
 
     if (calSidebarStats) {
+      const monthRoi = ((monthPnl / 10000) * 100).toFixed(2);
+      const monthRoiStr = (monthPnl >= 0 ? '+' : '') + monthRoi + '%';
+      const monthPnlDisplay = state.calendarUnit === 'pct'
+        ? `${monthRoiStr} (${fmtDollar(monthPnl)})`
+        : `${fmtDollar(monthPnl)} (${monthRoiStr})`;
+
       calSidebarStats.innerHTML = `
-        <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--text2);">Trading Days</span><span class="mono">${st.tradingDaysCount}</span></div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--text2);">Day Win Rate</span><span class="mono" style="color:var(--green-text);">${st.profitableDaysPct.toFixed(1)}%</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--text2);">Trading Days</span><span class="mono">${activeTradingDays}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--text2);">Day Win Rate</span><span class="mono" style="color:var(--green-text);">${dayWinRate}%</span></div>
         <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--text2);">Winning Days</span><span class="mono" style="color:var(--green-text);">${winDays}</span></div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--text2);">Losing Days</span><span class="mono" style="color:var(--red-text);">${lossDays}</span></div>`;
+        <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--text2);">Losing Days</span><span class="mono" style="color:var(--red-text);">${lossDays}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;padding-top:6px;border-top:1px solid var(--border);"><span style="color:var(--text2);">Month Realized P&L</span><span class="mono" style="font-weight:700;color:${rColor(monthPnl)};">${monthPnlDisplay}</span></div>`;
     }
   }
 

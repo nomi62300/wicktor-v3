@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Wicktor — Prop Firm Multi-Account Portfolio</title>
 <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/style.css?v=3.3.8">
 </head>
 <body>
 
@@ -375,11 +375,22 @@
   <!-- SUB-TAB 4: Monthly Calendar -->
   <!-- ===================================================================== -->
   <div id="subtab-calendar" class="prop-subtab-panel" style="display:none;">
-    <div class="prop-grid-2" style="margin-bottom:20px;">
+    <div class="prop-cal-layout" style="margin-bottom:20px;">
       <!-- Left: Calendar Matrix -->
       <div class="prop-card">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
-          <div style="font-family:var(--font-display);font-size:16px;font-weight:600;" id="prop-cal-month-title">October 2026</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <div class="prop-cal-nav">
+              <button id="prop-cal-prev-btn" class="prop-cal-nav-btn" title="Previous Month">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+              </button>
+              <div style="font-family:var(--font-display);font-size:17px;font-weight:700;min-width:150px;text-align:center;" id="prop-cal-month-title">November 2026</div>
+              <button id="prop-cal-next-btn" class="prop-cal-nav-btn" title="Next Month">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+              </button>
+            </div>
+            <button id="prop-cal-today-btn" class="prop-cal-today-btn">Current Month</button>
+          </div>
           <div class="chip-row" id="prop-cal-unit-toggle" style="margin:0;">
             <button class="chip active" data-unit="dollar">$ Dollar</button>
             <button class="chip" data-unit="pct">% Return</button>
@@ -412,7 +423,7 @@
 
 </div>
 
-<script src="js/portfolio.js?v=3.3.7"></script>
-<script src="js/portfolio-page.js?v=3.3.7"></script>
+<script src="js/portfolio.js?v=3.3.8"></script>
+<script src="js/portfolio-page.js?v=3.3.8"></script>
 </body>
 </html>

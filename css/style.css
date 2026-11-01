@@ -1131,13 +1131,71 @@ input:focus-visible {
   background: #ef4444;
 }
 
+/* Calendar Layout & Navigation */
+.prop-cal-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 16px;
+  margin-bottom: 20px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .prop-cal-layout {
+    grid-template-columns: 1fr;
+  }
+}
+.prop-cal-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.prop-cal-nav-btn {
+  background: var(--surf2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.prop-cal-nav-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--gold);
+  color: var(--gold-text);
+}
+.prop-cal-nav-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+  border-color: var(--border);
+}
+.prop-cal-today-btn {
+  background: rgba(217, 180, 106, 0.12);
+  border: 1px solid rgba(217, 180, 106, 0.35);
+  color: var(--gold-text);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.prop-cal-today-btn:hover {
+  background: rgba(217, 180, 106, 0.22);
+  border-color: var(--gold);
+}
+
 /* Calendar Grid */
 .prop-cal-header-row {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 8px;
   text-align: center;
+  width: 100%;
 }
 .prop-cal-header-cell {
   font-size: 11px;
@@ -1147,8 +1205,9 @@ input:focus-visible {
 }
 .prop-cal-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
+  width: 100%;
 }
 .prop-cal-cell {
   background: var(--surf2);
@@ -1156,6 +1215,9 @@ input:focus-visible {
   border-radius: var(--radius-md);
   padding: 10px 12px;
   min-height: 80px;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -1186,10 +1248,14 @@ input:focus-visible {
   font-family: var(--font-mono);
   font-size: 13px;
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .prop-cal-sub {
   font-size: 10px;
   color: var(--text3);
+  white-space: nowrap;
 }
 
 /* Pill badges in table */
