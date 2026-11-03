@@ -147,7 +147,7 @@
   const MIN_CAL_MONTH = 9; // October (0-indexed)
 
   function calPrevMonth() {
-    if (state.calendarYear === MIN_CAL_YEAR && state.calendarMonth <= MIN_CAL_MONTH) return;
+    if (state.calendarYear < MIN_CAL_YEAR || (state.calendarYear === MIN_CAL_YEAR && state.calendarMonth <= MIN_CAL_MONTH)) return;
     state.calendarMonth--;
     if (state.calendarMonth < 0) {
       state.calendarMonth = 11;
@@ -1245,7 +1245,7 @@
     }
 
     // Button disabled states
-    const isAtMin = (state.calendarYear === MIN_CAL_YEAR && state.calendarMonth <= MIN_CAL_MONTH);
+    const isAtMin = (state.calendarYear < MIN_CAL_YEAR || (state.calendarYear === MIN_CAL_YEAR && state.calendarMonth <= MIN_CAL_MONTH));
     const isAtMax = (state.calendarYear > currentRealYear || (state.calendarYear === currentRealYear && state.calendarMonth >= currentRealMonth));
     const isCurrentMonthView = (state.calendarYear === currentRealYear && state.calendarMonth === currentRealMonth);
 
